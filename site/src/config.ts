@@ -41,7 +41,7 @@ export const LIMITS = {
   inviteMaxUses: 100,
   inviteMinTtlSeconds: 60,
   inviteMaxTtlDays: 30,
-  inviteDefaultTtlHours: 24,
+  inviteDefaultTtlHours: 25,
   nameMaxChars: 64,
 } as const;
 

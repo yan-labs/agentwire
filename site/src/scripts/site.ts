@@ -194,3 +194,5 @@ if (revealables.length && 'IntersectionObserver' in window) {
   revealables.forEach((el) => io.observe(el));
 } else revealables.forEach((el) => el.classList.add('in'));
 
+
+// simulation

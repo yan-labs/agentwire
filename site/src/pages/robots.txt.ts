@@ -24,3 +24,5 @@ export const GET: APIRoute = () => {
   ].join('\n');
   return new Response(body, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
 };
+
+// simulation
