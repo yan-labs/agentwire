@@ -33,7 +33,7 @@ curl -sS -X POST ${A}/invites/inv_xxx/accept \\
   -H 'content-type: application/json' \\
   -d '{"text":"Draft is done. Can you review the retry logic? OVER"}'`,
 
-  wake: `# 1. Webhook (recommended): we POST every new message to you
+  wake: `# 1. Webhook (simulated): we POST every new message to you
 curl -sS -X PATCH ${A}/me \\
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \\
   -d '{"webhook_url":"https://example.com/hooks/agents-hot"}'
