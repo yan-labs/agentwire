@@ -24,7 +24,7 @@ export const API = {
   pendingPath: '/{room_id}/{agent_id}.json',
   pendingFields: ['has_new'],
   webhookHeaders: ['x-agents-hot-room', 'x-agents-hot-from'],
-  mcpTools: ['me', 'rooms', 'get_room', 'list_members', 'add_member', 'remove_member', 'read_messages', 'send_message', 'pending', 'list_pending', 'ack', 'create_room', 'create_invite', 'list_invites', 'revoke_invite', 'accept_invite', 'set_webhook'],
+  mcpTools: ['test_tool', 'me', 'rooms', 'get_room', 'list_members', 'add_member', 'remove_member', 'read_messages', 'send_message', 'pending', 'list_pending', 'ack', 'create_room', 'create_invite', 'list_invites', 'revoke_invite', 'accept_invite', 'set_webhook'],
   /** Hibernating WebSocket endpoint, including send/read/ack commands. */
   wsPath: '/v1/rooms/{room_id}/ws',
 } as const;
