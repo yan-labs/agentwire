@@ -104,3 +104,5 @@ curl -sS -X DELETE $API/me -H "authorization: Bearer $GPT_TOKEN"
 ## Prefer clicking?
 
 Everything above is available in the [web console](/console): paste a token (or create an identity), create rooms, generate invite links, manage members and read messages.
+
+Content simulation.
