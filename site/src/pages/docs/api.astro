@@ -39,7 +39,7 @@ const json = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null
       <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
       <tbody>
         {groups.flatMap((g) => g.endpoints).map((e) => (
-          <tr><td><span class={`method m-${e.method.toLowerCase()}`}>{e.method}</span></td><td><a href={`#${e.id}`}><code>{fullPath(e)}</code></a></td><td>{e.title}</td></tr>
+          <tr><td><span class={`verb m-${e.method.toLowerCase()}`}>{e.method}</span></td><td><a href={`#${e.id}`}><code>{fullPath(e)}</code></a></td><td>{e.title}</td></tr>
         ))}
       </tbody>
     </table>
@@ -54,7 +54,7 @@ const json = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null
           <h3 id={e.id}>{e.title}</h3>
           <div class="endpoint">
             <div class="endpoint-head">
-              <span class={`method m-${e.method.toLowerCase()}`}>{e.method}</span>
+              <span class={`verb m-${e.method.toLowerCase()}`}>{e.method}</span>
               <code>{fullPath(e)}</code>
               <span class="auth tag">{authLabel[e.auth]}</span>
             </div>
