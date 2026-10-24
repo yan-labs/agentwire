@@ -9,6 +9,8 @@ type Agent = {
   name: string;
   token_hash: string;
   webhook_url: string | null;
+  webhook_headers: string | null;
+  last_read: string | null;
   created_at: string;
 };
 
@@ -95,7 +97,11 @@ export class Room extends DurableObject<Env> {
           created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+        CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
       `);
+      for (const col of ["webhook_headers TEXT", "last_read TEXT"]) {
+        try { this.ctx.storage.sql.exec(`ALTER TABLE agents ADD COLUMN ${col}`); } catch {}
+      }
     });
   }
 
@@ -109,7 +115,7 @@ export class Room extends DurableObject<Env> {
   private listAgents(): Agent[] {
     return this.ctx.storage.sql
       .exec<Agent>(
-        "SELECT id, name, token_hash, webhook_url, created_at FROM agents ORDER BY created_at ASC"
+        "SELECT id, name, token_hash, webhook_url, webhook_headers, last_read, created_at FROM agents ORDER BY created_at ASC"
       )
       .toArray()
       .map((a) => ({
@@ -122,13 +128,138 @@ export class Room extends DurableObject<Env> {
     const hash = await sha256Hex(token);
     const rows = this.ctx.storage.sql
       .exec<Agent>(
-        "SELECT id, name, token_hash, webhook_url, created_at FROM agents WHERE token_hash = ?",
+        "SELECT id, name, token_hash, webhook_url, webhook_headers, last_read, created_at FROM agents WHERE token_hash = ?",
         hash
       )
       .toArray();
     const a = rows[0];
     if (!a) return null;
     return { ...a, webhook_url: a.webhook_url ?? null };
+  }
+
+  private streams = new Map<WritableStreamDefaultWriter<Uint8Array>, { agentId: string | null; admin: boolean; timer: ReturnType<typeof setInterval> }>();
+
+  private kvGet(k: string): string | null {
+    const r = this.ctx.storage.sql.exec<{ v: string }>("SELECT v FROM kv WHERE k = ?", k).toArray()[0];
+    return r ? r.v : null;
+  }
+  private kvSet(k: string, v: string | null) {
+    this.ctx.storage.sql.exec("INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", k, v);
+  }
+
+  private parseHeaders(raw: unknown): Record<string, string> | null | "invalid" {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (!/^[A-Za-z0-9-]{1,64}$/.test(k) || typeof v !== "string" || v.length > 4096) return "invalid";
+      out[k] = v;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  private visible(r: { from: string; to: string | null }, agentId: string | null, admin: boolean): boolean {
+    if (admin) return true;
+    if (!agentId) return false;
+    if (!r.to) return true;
+    return r.to === agentId || r.from === agentId;
+  }
+
+  private rowsAfter(anchorId: string | null): Message[] {
+    type Row = { id: string; room_id: string; from_agent: string; to_agent: string | null; text: string; meta: string | null; created_at: string };
+    const anchor = anchorId
+      ? this.ctx.storage.sql.exec<{ created_at: string; id: string }>("SELECT created_at, id FROM messages WHERE id = ? OR created_at = ? LIMIT 1", anchorId, anchorId).toArray()[0]
+      : undefined;
+    const rows = anchor
+      ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? OR (created_at = ? AND id > ?) ORDER BY created_at ASC, id ASC LIMIT 500`, anchor.created_at, anchor.created_at, anchor.id).toArray()
+      : anchorId
+        ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? ORDER BY created_at ASC, id ASC LIMIT 500`, anchorId).toArray()
+        : this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages ORDER BY created_at ASC, id ASC LIMIT 500`).toArray();
+    return rows.map((r) => ({ id: r.id, room_id: r.room_id, from: r.from_agent, to: r.to_agent ?? null, text: r.text, meta: r.meta ? JSON.parse(r.meta) : null, created_at: r.created_at }));
+  }
+
+  private async stream(request: Request, url: URL): Promise<Response> {
+    const token = bearer(request) || url.searchParams.get("token");
+    if (!token) return err("missing bearer token", 401);
+    const agent = await this.findAgentByToken(token);
+    const admin = await this.isAdmin(token);
+    if (!agent && !admin) return err("unauthorized", 401);
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+    const enc = new TextEncoder();
+    const agentId = agent ? agent.id : null;
+    const after = url.searchParams.get("after") || request.headers.get("last-event-id");
+    const close = () => {
+      const s = this.streams.get(writer);
+      if (s) clearInterval(s.timer);
+      this.streams.delete(writer);
+      writer.close().catch(() => undefined);
+    };
+    const timer = setInterval(() => {
+      writer.write(enc.encode(`: ping ${new Date().toISOString()}\n\n`)).catch(close);
+    }, 20_000);
+    this.streams.set(writer, { agentId, admin, timer });
+    writer.write(enc.encode(`retry: 3000\nevent: hello\ndata: ${JSON.stringify({ agent_id: agentId, state: this.state() })}\n\n`)).catch(close);
+    if (after) {
+      for (const m of this.rowsAfter(after)) {
+        if (this.visible(m, agentId, admin)) writer.write(enc.encode(`id: ${m.id}\nevent: message\ndata: ${JSON.stringify(m)}\n\n`)).catch(close);
+      }
+    }
+    request.signal?.addEventListener?.("abort", close);
+    return new Response(readable, {
+      headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no", "access-control-allow-origin": "*" },
+    });
+  }
+
+  private broadcast(m: Message) {
+    const enc = new TextEncoder();
+    const data = enc.encode(`id: ${m.id}\nevent: message\ndata: ${JSON.stringify({ ...m, state: this.state() })}\n\n`);
+    for (const [w, s] of this.streams) {
+      if (!this.visible(m, s.agentId, s.admin)) continue;
+      w.write(data).catch(() => { clearInterval(s.timer); this.streams.delete(w); });
+    }
+  }
+
+  private state() {
+    return { floor: this.kvGet("floor"), session: this.kvGet("session") || "closed", last_signal: this.kvGet("last_signal") };
+  }
+
+  private updateTurn(fromId: string, to: string | null, text: string) {
+    const m = /\b(over\s+and\s+out|over|out)\W*$/i.exec(text.trim());
+    const sig = m ? m[1].toLowerCase().replace(/\s+/g, " ") : null;
+    if (sig === "out" || sig === "over and out") {
+      this.kvSet("session", "closed"); this.kvSet("floor", null); this.kvSet("last_signal", "OUT");
+    } else if (sig === "over") {
+      const others = this.listAgents().filter((a) => a.id !== fromId);
+      const next = to ?? (others.length === 1 ? others[0].id : null);
+      this.kvSet("session", "open"); this.kvSet("floor", next); this.kvSet("last_signal", "OVER");
+    } else {
+      this.kvSet("session", "open"); this.kvSet("floor", fromId); this.kvSet("last_signal", null);
+    }
+  }
+
+  private async pending(request: Request): Promise<Response> {
+    const token = bearer(request);
+    if (!token) return err("missing bearer token", 401);
+    const agent = await this.findAgentByToken(token);
+    if (!agent) return err("unauthorized", 401);
+    const msgs = this.rowsAfter(agent.last_read).filter((m) => m.from !== agent.id && this.visible(m, agent.id, false));
+    const last = msgs[msgs.length - 1];
+    return json({ has_new: msgs.length > 0, count: msgs.length, latest_id: last ? last.id : null, from: last ? last.from : null, last_read: agent.last_read, state: this.state() });
+  }
+
+  private async markRead(request: Request): Promise<Response> {
+    const token = bearer(request);
+    if (!token) return err("missing bearer token", 401);
+    const agent = await this.findAgentByToken(token);
+    if (!agent) return err("unauthorized", 401);
+    let body: { id?: string } = {};
+    try { body = (await request.json()) as typeof body; } catch { return err("invalid json", 400); }
+    if (!body.id) return err("id required", 400);
+    const ok = this.ctx.storage.sql.exec("SELECT id FROM messages WHERE id = ?", body.id).toArray().length;
+    if (!ok) return err("unknown message id", 400);
+    this.ctx.storage.sql.exec("UPDATE agents SET last_read = ? WHERE id = ?", body.id, agent.id);
+    return json({ ok: true, last_read: body.id });
   }
 
   private async isAdmin(token: string): Promise<boolean> {
@@ -173,6 +304,9 @@ export class Room extends DurableObject<Env> {
       if (method === "GET" && path === "/internal/messages") {
         return await this.getMessages(request, url);
       }
+      if (method === "GET" && path === "/internal/stream") return await this.stream(request, url);
+      if (method === "GET" && path === "/internal/pending") return await this.pending(request);
+      if (method === "POST" && path === "/internal/read") return await this.markRead(request);
       return err("not found", 404);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -216,12 +350,15 @@ export class Room extends DurableObject<Env> {
       id: a.id,
       name: a.name,
       has_webhook: Boolean(a.webhook_url),
+      has_webhook_headers: Boolean(a.webhook_headers),
       created_at: a.created_at,
     }));
     return json({
       room_id: meta.room_id,
       created_at: meta.created_at,
       agents,
+      ...this.state(),
+      live_streams: this.streams.size,
     });
   }
 
@@ -232,7 +369,7 @@ export class Room extends DurableObject<Env> {
     const meta = this.getMeta();
     if (!meta) return err("room not found", 404);
 
-    let body: { name?: string; webhook_url?: string | null } = {};
+    let body: { name?: string; webhook_url?: string | null; webhook_headers?: unknown } = {};
     try {
       body = (await request.json()) as typeof body;
     } catch {
@@ -257,16 +394,19 @@ export class Room extends DurableObject<Env> {
       }
     }
 
+    const hdrs = this.parseHeaders(body.webhook_headers);
+    if (hdrs === "invalid") return err("webhook_headers must be an object of string values", 400);
     const agent_id = randomId("agent");
     const agent_token = randomToken(32);
     const token_hash = await sha256Hex(agent_token);
     const created_at = new Date().toISOString();
     this.ctx.storage.sql.exec(
-      "INSERT INTO agents (id, name, token_hash, webhook_url, created_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO agents (id, name, token_hash, webhook_url, webhook_headers, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       agent_id,
       name,
       token_hash,
       webhook_url,
+      hdrs ? JSON.stringify(hdrs) : null,
       created_at
     );
     return json({
@@ -274,6 +414,7 @@ export class Room extends DurableObject<Env> {
       name,
       token: agent_token,
       webhook_url,
+      has_webhook_headers: Boolean(hdrs),
       created_at,
     });
   }
@@ -284,7 +425,7 @@ export class Room extends DurableObject<Env> {
     const agent = await this.findAgentByToken(token);
     if (!agent) return err("unauthorized", 401);
 
-    let body: { webhook_url?: string | null; name?: string } = {};
+    let body: { webhook_url?: string | null; name?: string; webhook_headers?: unknown } = {};
     try {
       body = (await request.json()) as typeof body;
     } catch {
@@ -309,14 +450,21 @@ export class Room extends DurableObject<Env> {
       }
     }
 
+    let webhook_headers = agent.webhook_headers;
+    if ("webhook_headers" in body) {
+      const h = this.parseHeaders(body.webhook_headers);
+      if (h === "invalid") return err("webhook_headers must be an object of string values", 400);
+      webhook_headers = h ? JSON.stringify(h) : null;
+    }
     let name = agent.name;
     if (typeof body.name === "string" && body.name.trim()) {
       name = body.name.trim().slice(0, 64);
     }
 
     this.ctx.storage.sql.exec(
-      "UPDATE agents SET webhook_url = ?, name = ? WHERE id = ?",
+      "UPDATE agents SET webhook_url = ?, webhook_headers = ?, name = ? WHERE id = ?",
       webhook_url,
+      webhook_headers,
       name,
       agent.id
     );
@@ -325,6 +473,7 @@ export class Room extends DurableObject<Env> {
       name,
       webhook_url,
       has_webhook: Boolean(webhook_url),
+      has_webhook_headers: Boolean(webhook_headers),
     });
   }
 
@@ -394,6 +543,9 @@ export class Room extends DurableObject<Env> {
       created_at,
     };
 
+    this.updateTurn(agent.id, to, text);
+    this.broadcast(message);
+
     // Fire-and-forget webhook fan-out (not to sender; respect `to` if set)
     const peers = this.listAgents().filter((a) => {
       if (a.id === agent.id) return false;
@@ -407,6 +559,7 @@ export class Room extends DurableObject<Env> {
         fetch(url, {
           method: "POST",
           headers: {
+            ...(peer.webhook_headers ? (JSON.parse(peer.webhook_headers) as Record<string, string>) : {}),
             "content-type": "application/json",
             "user-agent": "AgentWire/0.1",
             "x-agentwire-room": meta.room_id,
@@ -416,6 +569,7 @@ export class Room extends DurableObject<Env> {
             type: "message",
             message,
             to_agent: peer.id,
+            state: this.state(),
           }),
         }).catch(() => undefined)
       );
