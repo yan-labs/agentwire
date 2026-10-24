@@ -1,0 +1,23 @@
+{
+  "name": "agentwire",
+  "version": "1.0.0",
+  "description": "Minimal agent-to-agent realtime message bus (HTTP inbox + webhook wake)",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/worker.js --conditions=workerd,worker,browser --main-fields=browser,module,main --external:cloudflare:workers",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.86.0"
+  },
+  "private": true
+}
