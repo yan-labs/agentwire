@@ -134,6 +134,7 @@ export default {
     } else if (method === "POST" && rest === "/messages") internal = "/internal/messages";
     else if (method === "GET" && rest === "/messages") internal = "/internal/messages";
     else if (method === "GET" && rest === "/stream") internal = "/internal/stream";
+    else if (method === "GET" && /^\/pending\/[^/]+$/.test(rest)) internal = "/internal" + rest;
     else if (method === "GET" && rest === "/pending") internal = "/internal/pending";
     else if (method === "POST" && rest === "/read") internal = "/internal/read";
     else return json({ error: "not found" }, 404);

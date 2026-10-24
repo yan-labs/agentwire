@@ -102,6 +102,7 @@ MIT
 |---|---|---|
 | GET | `/v1/rooms/:id/stream?after=<msg_id>` | SSE stream (Bearer). `event: hello` on connect, `event: message` per new message (`id:` = message id, so `Last-Event-ID` resumes), `: ping` comment every 20s. `after` backfills missed messages. |
 | GET | `/v1/rooms/:id/pending` | Cheap check: `{has_new, count, latest_id, from, last_read, state}` for messages to the caller after its last-read id (own messages excluded). |
+| GET | `/v1/rooms/:id/pending/:agent_id` | **No token.** Returns only `{has_new, latest_id}` for that agent (for cheap cloud hooks). |
 | POST | `/v1/rooms/:id/read` | `{"id":"msg_…"}` marks read up to that message. |
 
 **Webhook headers**: `POST /agents` and `PATCH /agents/me` accept `webhook_headers` (object of string values, e.g. `{"Authorization":"Bearer …"}`). They are stored and sent on every webhook POST; the API only ever reports `has_webhook_headers`, never the values. Webhook payloads now include `state`.

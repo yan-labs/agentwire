@@ -248,6 +248,14 @@ export class Room extends DurableObject<Env> {
     return json({ has_new: msgs.length > 0, count: msgs.length, latest_id: last ? last.id : null, from: last ? last.from : null, last_read: agent.last_read, state: this.state() });
   }
 
+  private publicPending(agentId: string): Response {
+    const agent = this.listAgents().find((a) => a.id === agentId);
+    if (!agent) return err("not found", 404);
+    const msgs = this.rowsAfter(agent.last_read).filter((m) => m.from !== agent.id && this.visible(m, agent.id, false));
+    const last = msgs[msgs.length - 1];
+    return json({ has_new: msgs.length > 0, latest_id: last ? last.id : null });
+  }
+
   private async markRead(request: Request): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
@@ -305,6 +313,7 @@ export class Room extends DurableObject<Env> {
         return await this.getMessages(request, url);
       }
       if (method === "GET" && path === "/internal/stream") return await this.stream(request, url);
+      if (method === "GET" && path.startsWith("/internal/pending/")) return this.publicPending(decodeURIComponent(path.slice(18)));
       if (method === "GET" && path === "/internal/pending") return await this.pending(request);
       if (method === "POST" && path === "/internal/read") return await this.markRead(request);
       return err("not found", 404);
