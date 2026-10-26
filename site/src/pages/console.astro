@@ -1,0 +1,11 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/console.css';
+---
+<Base title="Console" description="Register an identity or sign in with a token, create or join rooms, read and send messages and copy invite prompts for your AI. Built for phones." path="/console" noindex bare>
+  <div id="console-root" class="console">
+    <noscript><div class="c-center"><div class="c-card" style="max-width:520px"><h1 style="font-size:1.2rem">JavaScript required</h1><p class="muted">The console is a small web app. Enable JavaScript, or use the <a href="/docs/api">API</a> directly.</p></div></div></noscript>
+    <div class="c-center"><p class="muted">Loading console…</p></div>
+  </div>
+  <script>import '../console/main.ts';</script>
+</Base>

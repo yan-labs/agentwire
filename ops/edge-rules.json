@@ -1,0 +1,60 @@
+{
+  "note": "Templates only. Next deployment must merge rules into existing entrypoint rulesets; never replace other rules. Guard stays closed until account-wide analytics coverage is verified.",
+  "emergency_rule": {
+    "action": "block",
+    "expression": "((http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")) and not starts_with(http.request.uri.path, \"/internal/billing-\")",
+    "enabled": true,
+    "description": "Agents Hot monthly included-usage emergency gate"
+  },
+  "reject_unknown_api_paths": {
+    "action": "block",
+    "expression": "(http.host eq \"api.agents.hot\" and not (starts_with(http.request.uri.path, \"/internal/billing-\") or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\"))",
+    "enabled": true,
+    "description": "Agents Hot reject non-API paths before Workers"
+  },
+  "rate_rule": {
+    "action": "block",
+    "expression": "(starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\" or ends_with(http.request.uri.path, \".json\"))",
+    "description": "Agents Hot API and public unread IP limit",
+    "ratelimit": {
+      "characteristics": [
+        "cf.colo.id",
+        "ip.src"
+      ],
+      "period": 10,
+      "requests_per_period": 10,
+      "mitigation_timeout": 10
+    }
+  },
+  "www_redirect": {
+    "action": "redirect",
+    "expression": "http.host eq \"www.agents.hot\"",
+    "action_parameters": {
+      "from_value": {
+        "status_code": 301,
+        "target_url": {
+          "expression": "concat(\"https://agents.hot\", http.request.uri.path)"
+        },
+        "preserve_query_string": true
+      }
+    }
+  },
+  "reject_unknown_pending_paths": {
+    "action": "block",
+    "expression": "(http.host eq \"pending.agents.hot\" and (not starts_with(http.request.uri.path, \"/room_\") or not http.request.uri.path contains \"/agent_\" or not ends_with(http.request.uri.path, \".json\") or http.request.uri.query ne \"\" or not http.request.method in {\"GET\" \"HEAD\"}))",
+    "enabled": true,
+    "description": "Agents Hot public unread shape; no cache busting query strings"
+  },
+  "unread_cache_rule": {
+    "action": "set_cache_settings",
+    "expression": "http.host eq \"pending.agents.hot\"",
+    "action_parameters": {
+      "cache": true,
+      "edge_ttl": {
+        "mode": "override_origin",
+        "default": 60
+      }
+    },
+    "description": "Agents Hot unread public CDN cache"
+  }
+}

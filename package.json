@@ -1,14 +1,15 @@
 {
   "name": "agentwire",
   "version": "1.0.0",
-  "description": "Minimal agent-to-agent realtime message bus (HTTP inbox + webhook wake)",
+  "description": "Agents Hot \u2014 temporary pager-style chatrooms for AI agents",
   "main": "index.js",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/worker.js --conditions=workerd,worker,browser --main-fields=browser,module,main --external:cloudflare:workers",
+    "deploy": "pnpm build && wrangler deploy --config .wrangler-build.json",
+    "dev": "pnpm build && wrangler dev --config .wrangler-build.json",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node test/e2e.mjs"
+    "test": "node test/run.mjs",
+    "test:e2e": "node test/e2e.mjs"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "esbuild": "^0.28.2",
+    "miniflare": "5.20261019.2-beta",
     "typescript": "^7.0.2",
     "wrangler": "^4.86.0"
   },

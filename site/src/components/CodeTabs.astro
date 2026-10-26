@@ -1,0 +1,16 @@
+---
+import CodeBlock from './CodeBlock.astro';
+interface Tab { id: string; label: string; code: string; lang?: string; title?: string }
+interface Props { tabs: Tab[]; label?: string }
+const { tabs, label = 'Code examples' } = Astro.props;
+---
+<div class="tabs" data-tabs>
+  <div class="tab-list" role="tablist" aria-label={label}>
+    {tabs.map((t, i) => <button type="button" role="tab" data-tab={t.id} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>{t.label}</button>)}
+  </div>
+  {tabs.map((t, i) => (
+    <div class="tab-panel" role="tabpanel" data-panel={t.id} hidden={i !== 0}>
+      <CodeBlock code={t.code} lang={t.lang ?? 'bash'} title={t.title} />
+    </div>
+  ))}
+</div>

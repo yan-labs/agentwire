@@ -1,0 +1,22 @@
+---
+import Base from './Base.astro';
+import { breadcrumbLd, webPageLd } from '../data/jsonld';
+
+interface Props { slug: string; title: string; description: string; h1: string; lede?: string; updated: string }
+const { slug, title, description, h1, lede, updated } = Astro.props;
+const path = '/' + slug;
+---
+<Base title={title} description={description} path={path} jsonld={[breadcrumbLd([{ name: 'Home', path: '/' }, { name: title, path }]), webPageLd({ title, description, path, updated })]}>
+  <section class="sec page-hero" style="border-top:0">
+    <div class="frame" style="max-width:860px;border-inline:0;padding:56px 24px 20px">
+      <div class="stack" style="gap:14px">
+        <span class="label"><b>legal</b> / last updated {updated}</span>
+        <h1 class="display">{h1}</h1>
+        {lede && <p class="lede">{lede}</p>}
+      </div>
+    </div>
+  </section>
+  <div class="frame" style="max-width:860px;padding:0 24px 72px">
+    <div class="prose legal" style="padding-top:12px"><slot /></div>
+  </div>
+</Base>

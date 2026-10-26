@@ -4,3 +4,9 @@ dist/
 .dev.vars
 *.log
 .DS_Store
+
+.aw-assets/
+.wrangler-build.json
+worker-configuration.d.ts
+
+.wrangler-site-build.json

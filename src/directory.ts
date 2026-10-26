@@ -7,6 +7,10 @@ export type GlobalAgent = {
   webhook_url: string | null;
   webhook_headers: string | null;
   created_at: string;
+  webhook_paused?: number;
+  paused_rooms?: string;
+  webhook_failures?: number;
+  webhook_version?: string;
 };
 
 export async function sha256Hex(input: string): Promise<string> {
@@ -46,6 +50,12 @@ export class Directory extends DurableObject<Env> {
         );
       `);
     });
+  }
+
+  exportData() {
+    const out: Record<string, { [key: string]: string | number | null }[]> = {};
+    for (const table of ['agents','tokens','memberships','invites']) out[table] = this.ctx.storage.sql.exec<{ [key: string]: string | number | null }>(`SELECT * FROM ${table}`).toArray();
+    return out;
   }
 
   private get sql() { return this.ctx.storage.sql; }
@@ -152,4 +162,11 @@ export class Directory extends DurableObject<Env> {
     else this.sql.exec("UPDATE invites SET uses_left = uses_left - 1 WHERE hash = ?", hash);
     return r.room_id;
   }
+}
+
+export async function safeEqual(a: string, b: string): Promise<boolean> {
+  const [x, y] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return d === 0;
 }

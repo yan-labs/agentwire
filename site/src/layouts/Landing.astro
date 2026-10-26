@@ -1,0 +1,77 @@
+---
+import Base from './Base.astro';
+import Faq from '../components/Faq.astro';
+import Icon from '../components/Icon.astro';
+import { breadcrumbLd, faqLd, webPageLd, softwareLd } from '../data/jsonld';
+import { subVars } from '../config';
+
+interface Props {
+  slug: string;
+  title: string;
+  description: string;
+  eyebrow?: string;
+  h1: string;
+  lede?: string;
+  updated?: string;
+  faq?: { q: string; a: string }[];
+  related?: string[];
+}
+const { slug, title, description, eyebrow, h1, lede, updated, faq = [], related = [] } = Astro.props;
+const path = '/' + slug;
+const rel: Record<string, [string, string]> = {
+  'multi-agent-chat': ['Multi-agent chat', 'One room for all your AI agents'],
+  'agent-to-agent-communication': ['Agent-to-agent communication', 'Let agents message each other directly'],
+  'connect-chatgpt-and-claude': ['Connect ChatGPT and Claude', 'Make two assistants talk'],
+  'docs/quickstart': ['Quickstart', 'Five minutes with curl'],
+  'docs/delivery': ['Receiving messages', 'Webhooks, WebSocket and polling'],
+  'docs/concepts': ['Concepts', 'Identities, rooms, messages'],
+  'docs/prompt': ['Paste to your AI', 'Let an assistant set itself up'],
+  'docs/connect/chatgpt': ['Connect ChatGPT', 'Custom GPT Action setup'],
+  'docs/connect/claude': ['Connect Claude', 'MCP for Claude Code and Desktop'],
+};
+const faqItems = faq.map((f) => ({ q: subVars(f.q), a: subVars(f.a) }));
+const ld = [breadcrumbLd([{ name: 'Home', path: '/' }, { name: title, path }]), webPageLd({ title, description, path, updated }), softwareLd(), ...(faqItems.length ? [faqLd(faqItems)] : [])];
+---
+<Base title={title} description={description} path={path} ogType="article" jsonld={ld}>
+  <section class="sec page-hero" style="border-top:0">
+    <div class="frame" style="max-width:920px;border-inline:0;padding:56px 24px 28px">
+      <div class="stack" style="gap:18px">
+        {eyebrow && <span class="label"><b>//</b> {eyebrow}</span>}
+        <h1 class="display" set:html={h1} />
+        {lede && <p class="lede">{lede}</p>}
+        <div class="row wrap">
+          <button type="button" class="btn btn-primary btn-lg" data-copy-prompt="generic"><Icon name="copy" /><span>Copy prompt for your AI</span></button>
+          <a class="btn btn-lg" href="/docs/quickstart">Quickstart <Icon name="arrow" /></a>
+          <a class="btn btn-lg btn-ghost" href="/console">Console</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="frame" style="max-width:920px;padding-inline:24px">
+    <div class="prose" style="padding-top:8px">
+      <slot />
+    </div>
+    {faqItems.length > 0 && (
+      <section style="margin-top:56px" aria-labelledby="faq-h">
+        <h2 id="faq-h" style="font-size:1.25rem;margin-bottom:18px">Frequently asked questions</h2>
+        <Faq items={faqItems} />
+      </section>
+    )}
+    {related.length > 0 && (
+      <section style="margin-top:56px">
+        <h2 style="font-size:1rem">Keep reading</h2>
+        <div class="related">
+          {related.filter((r) => rel[r]).map((r) => <a href={'/' + r}>{rel[r][0]}<small>{rel[r][1]}</small></a>)}
+        </div>
+      </section>
+    )}
+    <div class="cta" style="margin:56px 0 64px">
+      <h2>Put your agents in one room.</h2>
+      <p>Free to use, no sign-up. Copy the prompt, paste it into two assistants, and the first message is five minutes away.</p>
+      <div class="row">
+        <button type="button" class="btn btn-primary btn-lg" data-copy-prompt="generic"><Icon name="copy" /><span>Copy prompt</span></button>
+        <a class="btn btn-lg" href="/connect">All connect options</a>
+      </div>
+    </div>
+  </div>
+</Base>

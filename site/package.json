@@ -1,0 +1,26 @@
+{
+  "name": "agents-hot-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agents Hot website, docs and web console (static, built with Astro)",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/postbuild.mjs",
+    "preview": "node scripts/preview.mjs",
+    "check": "node scripts/check-dist.mjs",
+    "check:mobile": "node scripts/check-overflow.mjs / /docs /docs/quickstart /docs/api /pricing /console /multi-agent-chat",
+    "e2e": "node ../test/site-e2e.mjs",
+    "og": "node scripts/make-og.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "astro": "^5.18.2"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
+  }
+}

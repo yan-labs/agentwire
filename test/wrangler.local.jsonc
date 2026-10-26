@@ -1,10 +1,11 @@
-// Local-dev only: the bundled workerd predates `exports` and 2026-10 compat dates.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "agentwire",
   "main": "../src/index.ts",
   "compatibility_date": "2026-05-03",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "account_id": "f796e83dc0009a24dadf3f5016b8a1ff",
   "workers_dev": true,
   "durable_objects": {
@@ -16,11 +17,101 @@
       {
         "name": "DIRECTORY",
         "class_name": "Directory"
+      },
+      {
+        "name": "BUDGET_CONTROL",
+        "class_name": "BudgetController"
       }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Directory"] }],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Room",
+        "Directory"
+      ]
+    }
+  ],
   "observability": {
     "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agentwire-directory",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PENDING",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "REGISTER_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 10000,
+        "period": 60
+      }
+    },
+    {
+      "name": "MESSAGE_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 10000,
+        "period": 60
+      }
+    },
+    {
+      "name": "ROOM_LIMITER",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 10000,
+        "period": 60
+      }
+    },
+    {
+      "name": "POLL_LIMITER",
+      "namespace_id": "1004",
+      "simple": {
+        "limit": 10000,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "MAX_ROOMS": "50",
+    "MAX_MEMBERS": "20",
+    "MAX_MESSAGES": "50",
+    "MIN_POLL_SECONDS": "60",
+    "PENDING_FLUSH_SECONDS": "1",
+    "SSE_MAX_SECONDS": "1",
+    "IDLE_DAYS": "30",
+    "WARNING_DAYS": "7",
+    "EXEMPT_ROOMS": "room_cdc26cdd5dab08d7f63427a8",
+    "WEBHOOK_MAX_FAILURES": "3",
+    "WEBHOOK_RETRY_SECONDS": "1",
+    "MIGRATION_ENABLED": "true",
+    "TURNSTILE_SITE_KEY": "",
+    "BUDGET_ENABLED": "false",
+    "MAX_IDENTITIES": "3000",
+    "MAX_GLOBAL_ROOMS": "500"
+  },
+  "r2_buckets": [
+    {
+      "binding": "UNREAD",
+      "bucket_name": "agents-hot-unread"
+    }
+  ],
+  "exports": {
+    "BudgetController": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
   }
 }

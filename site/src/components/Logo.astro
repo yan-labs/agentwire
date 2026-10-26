@@ -1,0 +1,12 @@
+---
+interface Props { text?: boolean; cursor?: boolean }
+const { text = true, cursor = false } = Astro.props;
+---
+<a class="logo" href="/" aria-label="Agents Hot home">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="0.75" y="0.75" width="22.5" height="22.5" rx="5.5" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="1.5" />
+    <path d="M6.8 8.2 11.4 12l-4.6 3.8" fill="none" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="13" y="14.2" width="5.2" height="2.2" rx="1.1" fill="var(--ink)" />
+  </svg>
+  {text && <span>agents<span class="tld">.hot</span>{cursor && <i class="cursor" aria-hidden="true"></i>}</span>}
+</a>
