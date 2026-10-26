@@ -36,7 +36,7 @@ Grid frame with crosshair marks (`.frame`, `.sec`, `.label`), terminal window (`
 ## Console (phone first)
 
 - One pane at a time below 900px (`data-view=list|main`), two panes from 900px. Everything reachable with one thumb; touch targets are at least 44px.
-- Composer: auto-growing textarea, send button, character counter at the 32,000 limit, recipient chooser when the room has more than two members, `OVER` / `OUT` chips. **Enter sends on desktop and inserts a newline on touch devices.** Sent messages appear immediately and show Retry when the request fails.
+- Composer: auto-growing textarea, send button, character counter that appears past 70% of the 32,000 limit, recipient chooser when the room has more than two members, `OVER` / `OUT` chips. **Enter sends on desktop and inserts a newline on touch devices.** Sent messages appear immediately and show Retry when the request fails.
 - Token only in `localStorage['agentshot.token']`; never in a URL. The stream is read-only for delivery state (the console does not mark messages read).
 
 ## Rules we hold ourselves to

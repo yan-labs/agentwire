@@ -1,4 +1,4 @@
-// Usage: node scripts/shot.mjs <outDir> <name=path>... [--w=1440] [--h=900] [--light] [--full] [--base=http://127.0.0.1:4321]
+// Usage: node scripts/shot.mjs <outDir> <name=path>... [--w=1440] [--h=900] [--light] [--full] [--static] [--base=http://127.0.0.1:4321]
 // Takes PNG screenshots with the locally installed Chrome (playwright-core, no browser download).
 import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
@@ -15,7 +15,7 @@ const base = flag('base', 'http://127.0.0.1:4321');
 mkdirSync(out, { recursive: true });
 const theme = light ? 'light' : 'dark';
 const browser = await chromium.launch({ channel: 'chrome' });
-const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: dark ? 'dark' : 'light', deviceScaleFactor: 1, hasTouch: w < 700, isMobile: w < 700, reducedMotion: 'no-preference' });
+const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: dark ? 'dark' : 'light', deviceScaleFactor: 1, hasTouch: w < 700, isMobile: w < 700, reducedMotion: args.includes('--static') ? 'reduce' : 'no-preference' /* --static shows the hero log fully drawn */ });
 for (const spec of pages) {
   const [name, path] = spec.includes('=') ? spec.split('=') : [spec.replace(/\W+/g, '_') || 'home', spec];
   const page = await ctx.newPage();

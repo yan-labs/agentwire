@@ -17,7 +17,7 @@ const page = await ctx.newPage();
 const w = watch(page);
 let step = '';
 const S = (n) => { step = n; };
-const shot = async (n) => { if (shots) await page.screenshot({ path: `${shots}/${n}-1440-${theme}.png` }); };
+const shot = async (n) => { if (shots) await page.evaluate(() => document.querySelectorAll('.toast:not(.toast-error)').forEach((t) => t.remove())); /* stale toasts would cover content */ if (shots) await page.screenshot({ path: `${shots}/${n}-1440-${theme}.png` }); };
 const clip = () => page.evaluate(() => navigator.clipboard.readText());
 let secondToken = '', thirdToken = '';
 

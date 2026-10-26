@@ -14,7 +14,9 @@ await ctx.addInitScript((t) => { try { localStorage.setItem('ah-theme', t); } ca
 const page = await ctx.newPage();
 const w = watch(page);
 let n = 0, step = '';
-const shot = async (name) => { n++; if (shots) await page.screenshot({ path: `${shots}/mobile-flow-${String(n).padStart(2, '0')}-${name}-390-${theme}.png` }); };
+const clearToasts = () => page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
+// stale toasts from earlier steps would cover content in the pictures, so they are cleared before each shot
+const shot = async (name) => { n++; if (shots) await clearToasts(); if (shots) await page.screenshot({ path: `${shots}/mobile-flow-${String(n).padStart(2, '0')}-${name}-390-${theme}.png` }); };
 const overflow = async (label) => {
   const r = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: document.documentElement.clientWidth }));
   check(`no horizontal overflow: ${label}`, r.sw <= r.vw, `${r.sw}/${r.vw}`);
@@ -108,7 +110,11 @@ try {
   await page.getByText('claude').first().waitFor();
   await overflow('people');
   await shot('people');
-  await page.locator('.c-back').tap();
+  // a poll can re-render the header between touch start and end and swallow the tap; a user would simply tap again
+  for (let i = 0; i < 3; i++) {
+    await page.locator('.c-back').tap();
+    if (await page.locator('#new-room').waitFor({ timeout: 2500 }).then(() => true, () => false)) break;
+  }
   await page.locator('#new-room').waitFor();
   check('back arrow returns to the room list', (await page.locator('.c-room').count()) === 1);
   await overflow('room list with a room');
