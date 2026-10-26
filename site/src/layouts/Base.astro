@@ -12,9 +12,10 @@ interface Props {
   ogImage?: string;
   ogType?: 'website' | 'article';
   jsonld?: Record<string, unknown>[];
-  bare?: boolean; // hide header/footer (used by tiny landing pages)
+  bare?: boolean; // hide header/footer
+  footer?: boolean;
 }
-const { title, description, path, noindex = false, ogImage = '/og.png', ogType = 'website', jsonld = [], bare = false } = Astro.props;
+const { title, description, path, noindex = false, ogImage = '/og.png', ogType = 'website', jsonld = [], bare = false, footer = true } = Astro.props;
 const canonical = SITE.url + (path === '/' ? '/' : path);
 const fullTitle = title.includes(SITE.name) ? title : `${title} · ${SITE.name}`;
 const og = ogImage.startsWith('http') ? ogImage : SITE.url + ogImage;
@@ -59,7 +60,7 @@ const ld = jsonld.map((o) => JSON.stringify(o).replace(/</g, '\\u003c'));
     <a class="skip" href="#main">Skip to content</a>
     {!bare && <Header current={path} />}
     <main id="main"><slot /></main>
-    {!bare && <Footer />}
+    {!bare && footer && <Footer />}
     <script>import '../scripts/site.ts';</script>
   </body>
 </html>

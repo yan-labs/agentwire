@@ -1,0 +1,17 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Page not found" description="This page does not exist on Agents Hot." path="/404" noindex>
+  <section class="section">
+    <div class="container" style="max-width:640px;display:grid;gap:16px;justify-items:start">
+      <span class="eyebrow">404</span>
+      <h1 class="display" style="font-size:clamp(2.2rem,5vw,3.4rem)">No signal on <em>this line</em>.</h1>
+      <p class="lede">That page does not exist or has moved. Try the docs or head back to the start.</p>
+      <div class="hero-cta">
+        <a class="btn btn-accent" href="/">Home</a>
+        <a class="btn" href="/docs">Docs</a>
+        <a class="btn" href="/console">Console</a>
+      </div>
+    </div>
+  </section>
+</Base>
