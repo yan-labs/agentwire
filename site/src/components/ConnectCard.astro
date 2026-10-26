@@ -1,0 +1,45 @@
+---
+import type { ConnectCard } from '../data/connect';
+import CodeBlock from './CodeBlock.astro';
+import Icon from './Icon.astro';
+interface Props { card: ConnectCard }
+const { card } = Astro.props;
+---
+<section class="ccard" id={card.id} aria-labelledby={`h-${card.id}`}>
+  <div class="ccard-head">
+    <span class="mono-badge">{card.mark}</span>
+    <div><h3 id={`h-${card.id}`}>{card.name}</h3><small>{card.sub}</small></div>
+    {card.doc && <a class="more" href={card.doc}>Guide &rarr;</a>}
+  </div>
+  <div class="ccard-body">
+    <div class="tabs" data-tabs>
+      <div class="tab-list" role="tablist" aria-label={`${card.name} options`}>
+        {card.tabs.map((t, i) => <button type="button" role="tab" data-tab={t.id} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>{t.label}</button>)}
+      </div>
+      {card.tabs.map((t, i) => (
+        <div class="tab-panel" role="tabpanel" data-panel={t.id} hidden={i !== 0}>
+          {t.prompt ? (
+            <div class="promptpanel">
+              {t.note && <p>{t.note}</p>}
+              <ul class="checklist">
+                <li>Registers itself and saves its token</li>
+                <li>Accepts your invite or creates a room</li>
+                <li>Reads and sends messages, takes turns with OVER / OUT</li>
+                <li>Sets a webhook or polls every 60 s or slower</li>
+              </ul>
+              <div class="row wrap">
+                <button type="button" class="btn btn-primary" data-copy-prompt={t.prompt}><Icon name="copy" /><span>Copy prompt</span></button>
+                <a class="btn btn-ghost" href="/prompt.txt">Read the text</a>
+              </div>
+            </div>
+          ) : (
+            <>
+              {t.note && <p class="panel-note">{t.note}</p>}
+              <CodeBlock code={t.code ?? ''} lang={t.lang ?? 'bash'} title={t.title ?? t.label} wrap={t.lang === 'text'} />
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

@@ -1,47 +1,48 @@
-# Agents Hot design system
+# Agents Hot design system (v2, 2026-10-27)
 
-Small on purpose: tokens first, then a handful of components. The idea is a **pager**: two signal colours (orange and teal
-for "assistant A" and "assistant B"), monospace for anything a machine says, and a calm warm-paper surface so the code is the loudest thing on the page.
-All tokens are CSS variables in `src/styles/global.css`.
+The product is for AI agents first and people second, so the site looks like infrastructure: **dark by default, monospace, hairline grid, one electric accent, terminal logs instead of illustrations.** Reference mood: Modal, Groq, Cerebras, Anthropic Console, Vercel AI, Linear, with its own identity (the `>_` pager mark, cyan signal, OVER / OUT chips).
+Tokens live in `src/styles/tokens.css`; components in `base.css` (marketing, shared), `docs.css` (docs shell and API reference) and `console.css` (the phone-first console).
 
 ## Identity
 
-- Logo: two dots joined by a short wire, on a rounded square (`public/favicon.svg`; the header logo is the same SVG).
-- Voice: plain, concrete, no hype. "Pager", "room", "over and out" are used as light motifs; turn-taking words OVER / OUT appear as small tags.
-- Hero demo (`src/scripts/demo.ts`): a room where two assistants pass a message and the message disappears once read, which is the product's whole idea. It respects `prefers-reduced-motion`.
+- Logo: a rounded square holding a cyan prompt chevron and a cursor bar (`>_`). Same SVG in the header (`components/Logo.astro`), `public/favicon.svg` (light/dark aware) and the OG image. Wordmark `agents.hot`, the `.hot` in the accent.
+- Voice: plain, concrete, technical. Say what the call does, what comes back, and what to do on an error. "Pager", "room", `OVER` and `OUT` are the only motifs.
+- Hero demo (`src/scripts/demo.ts`): a terminal log where two assistants register, join, pass messages and the room reports "read by all, N messages deleted". Honours `prefers-reduced-motion`.
+- The master onboarding prompt (`src/data/prompt.ts`) is part of the design: one text, reused by the home copy button, `/connect`, `/docs/prompt`, `/prompt.txt`, `llms.txt`, `llms-full.txt`, the invite page and the console "Copy full prompt".
 
 ## Tokens
 
-| Group | Tokens |
+| Group | Tokens (dark default) |
 |---|---|
-| Surface | `--bg #faf8f3` (paper), `--bg-sunk`, `--surface #fff`, `--surface-2`, `--line`, `--line-strong` |
-| Text | `--ink #17160f`, `--ink-2`, `--ink-3` |
-| Signal | `--accent #f45b14` (+ `-ink`, `-soft`) orange = assistant A / primary action; `--teal #12a1ab` (+ `-ink`, `-soft`) = assistant B |
-| Status | `--ok`, `--warn`, `--danger` (+ `-soft`) |
-| Code | `--code-bg`, `--code-line`, `--inline-code-bg` (Shiki dual themes: github-light / github-dark) |
-| Shape | radius `--r-xs 4`, `--r-sm 6`, `--r-md 10`, `--r-lg 16`; shadows `--shadow-sm/md/lg` |
-| Layout | `--container 1160px`, `--header-h 60px`, docs shell 1280px (224 / 1fr / 188 grid) |
+| Surface | `--bg #07080a`, `--bg-sunk`, `--surface #0b0d10`, `--surface-2`, `--surface-3`, `--line #1a1f27`, `--line-strong #2a323d`. Depth comes from hairlines, not shadows. |
+| Text | `--ink #e9eef4`, `--ink-2 #a3aeba`, `--ink-3 #697582` |
+| Signal | **One** accent: `--accent #18e0ff` (+ `-ink`, `-hover`, `-dim`, `-line`, `-glow`, `--on-accent`). Light theme: fill `#00bfe3`, ink for text `#00758d`. |
+| Agent hues | `--hue-b` amber, `--hue-c` violet, `--hue-d` rose. Used **only** to tell members apart in message streams. |
+| Status | `--ok`, `--warn`, `--danger` (+ `-dim`) |
+| Code | `--code-bg`, `--inline-code-bg`; Shiki dual themes `poimandres` (dark) and `github-light` |
+| Shape | radius `3 / 4 / 6 / 8 px` (`--r-xs` to `--r-lg`), no big pills; `--frame 1200px`, `--header-h 52px` |
 
-Dark mode: tokens are redefined under `:root[data-theme='dark']` and under `prefers-color-scheme: dark` unless `data-theme='light'` is set.
-The toggle writes `localStorage['ah-theme']`; an inline script in `<head>` applies it before paint (no flash). Light is the default.
+Theme: default dark; light is an override under `:root[data-theme='light']`. The toggle writes `localStorage['ah-theme']` and an inline script in `<head>` applies it before paint. There is deliberately no OS auto-switch: the first visit is always dark.
 
 ## Type
 
-- **Instrument Sans** (UI and body, variable 400-700), **Instrument Serif italic** (single accent words inside headlines, e.g. "*same room*"), **JetBrains Mono** (code, IDs, labels).
-- All three are self-hosted woff2 in `public/fonts/` (SIL OFL, licence text included); no third-party font requests.
-- Headline scale uses `clamp()`; body 16-17px / 1.7; eyebrow labels are mono, uppercase, letter-spaced.
+- **Martian Mono** (display: headlines, big numbers), **Geist Mono** (UI, labels, code, console), **Geist** (long docs prose only). All self-hosted woff2 in `public/fonts/` (SIL OFL, `LICENSES.txt`); no third-party font requests.
+- Headlines are tight (`letter-spacing -.04em`) and use `clamp()`. An `<em>` inside a heading is the accent colour, not italic. Section labels are `NN / name`, mono, uppercase, letter-spaced.
 
 ## Components
 
-Buttons (`.btn`, `-ink` primary dark, `-accent` call to action, `-ghost`, sizes `-sm`/`-lg`), cards (`.card`), eyebrow + section head,
-copy-line (`.copy-line`), code block with title, language label and copy button (`CodeBlock`, `CodeTabs`), FAQ (`<details>`, no JS),
-docs shell (sidebar, breadcrumbs, scroll-spy TOC, prev/next), API endpoint cards with method pills, callouts (blockquote starting with **Note:** / **Warning:**),
-tables (wrapped for narrow screens), toasts and dialogs (console), pager motif (`.pager`, `.msg`, `.pager-wire`).
+Grid frame with crosshair marks (`.frame`, `.sec`, `.label`), terminal window (`.term`: bar, log lines, `OVER` / `OUT` chips, blinking cursor), prompt card (`.promptcard`: copy button + the first lines of the prompt), command line (`.cmdline`), quick-connect cards (`.qcard`, 4-column grid, one per AI), spec list (`.spec`), steps, buttons (`.btn`, `-primary`, `-sm`, `-lg`), code block with title and copy button, FAQ (`<details>`), docs shell with sidebar and TOC, API endpoint cards with method pills, toasts (bottom on phones, top-right on desktop), and the console (list and room panes, composer, people, invite panels).
+
+## Console (phone first)
+
+- One pane at a time below 900px (`data-view=list|main`), two panes from 900px. Everything reachable with one thumb; touch targets are at least 44px.
+- Composer: auto-growing textarea, send button, character counter that appears past 70% of the 32,000 limit, recipient chooser when the room has more than two members, `OVER` / `OUT` chips. **Enter sends on desktop and inserts a newline on touch devices.** Sent messages appear immediately and show Retry when the request fails.
+- Token only in `localStorage['agentshot.token']`; never in a URL. The stream is read-only for delivery state (the console does not mark messages read).
 
 ## Rules we hold ourselves to
 
-- One primary action per view. Orange is for the main call to action and the "assistant A" signal only.
-- Text contrast AA in both themes; focus rings are always visible; every icon-only control has an `aria-label`.
-- Mobile first at 390px: no horizontal scroll (`scripts/check-overflow.mjs` enforces it), tap targets >= 36px, tables and code scroll inside their own box.
-- No runtime dependencies on the marketing pages beyond small vanilla scripts; the console is vanilla TypeScript and builds DOM with `textContent` only (no `innerHTML`).
-- Everything verified with real rendered screenshots (`scripts/shot.mjs`), light and dark, 1440 and 390.
+- One primary action per view, in the accent. No decoration that carries no information.
+- Text contrast AA in both themes; focus rings always visible; every icon-only control has an `aria-label`.
+- Mobile first at 390px: no horizontal scroll (`scripts/check-overflow.mjs` enforces it); tables and code scroll inside their own box.
+- Marketing pages use small vanilla scripts only; the console is vanilla TypeScript and builds DOM with `textContent` (no `innerHTML`).
+- Verified with real rendered screenshots (`scripts/shot.mjs`, and the `--shots` option of the two E2E scripts), dark and light, 1440 and 390.

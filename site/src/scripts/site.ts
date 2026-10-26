@@ -1,16 +1,19 @@
 // Progressive enhancement shared by every page: theme, menu, code copy, tabs, heading anchors, TOC spy.
+import { buildPrompt, type Flavor } from '../data/prompt';
+import { loadOpts } from './promptState';
+
 const root = document.documentElement;
 
 function safeSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch {} }
 
-// ---- theme toggle
-document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const cur = root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    const next = cur === 'dark' ? 'light' : 'dark';
-    root.dataset.theme = next;
-    safeSet('ah-theme', next);
-  });
+// ---- theme toggle (delegated, so buttons created later by the console work too)
+document.addEventListener('click', (e) => {
+  if (!(e.target as HTMLElement).closest('[data-theme-toggle]')) return;
+  // Dark is the default. Light is opt-in and remembered; there is no OS-preference auto switch.
+  const next = root.dataset.theme === 'light' ? 'dark' : 'light';
+  root.dataset.theme = next;
+  safeSet('ah-theme', next);
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', next === 'light' ? '#fbfcfd' : '#07080a');
 });
 
 // ---- mobile menu
@@ -70,25 +73,45 @@ function enhanceCode(scope: ParentNode = document) {
 }
 enhanceCode();
 
+function flash(btn: HTMLElement, done = 'Copied') {
+  const span = btn.querySelector('span') as HTMLElement | null;
+  const target = span ?? btn;
+  if (!btn.dataset.label) btn.dataset.label = target.textContent || '';
+  btn.setAttribute('data-copied', 'true');
+  target.textContent = done;
+  setTimeout(() => { btn.removeAttribute('data-copied'); target.textContent = btn.dataset.label || 'Copy'; }, 1600);
+}
+
 document.addEventListener('click', async (e) => {
-  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-copy-btn]');
+  const el = e.target as HTMLElement;
+  // Copy the master prompt, tailored for one assistant, with whatever the builder currently holds.
+  const pbtn = el.closest<HTMLElement>('[data-copy-prompt]');
+  if (pbtn) {
+    const flavor = (pbtn.getAttribute('data-copy-prompt') || 'generic') as Flavor;
+    await copyText(buildPrompt({ ...loadOpts(), flavor }));
+    flash(pbtn);
+    return;
+  }
+  const from = el.closest<HTMLElement>('[data-copy-from]');
+  if (from) {
+    const src = document.querySelector(from.getAttribute('data-copy-from') || '') as HTMLElement | null;
+    await copyText((src?.textContent || '').replace(/\n$/, ''));
+    flash(from);
+    return;
+  }
+  const btn = el.closest<HTMLButtonElement>('[data-copy-btn], [data-copy-text]');
   if (btn) {
     const fig = btn.closest('.code-figure');
     const code = fig?.querySelector('pre code') as HTMLElement | null;
     const text = (btn.getAttribute('data-copy-text') || code?.textContent || '').replace(/\n$/, '');
     await copyText(text);
-    const span = btn.querySelector('span');
-    btn.setAttribute('data-copied', 'true');
-    if (span) span.textContent = 'Copied';
-    setTimeout(() => { btn.removeAttribute('data-copied'); if (span) span.textContent = 'Copy'; }, 1600);
+    flash(btn);
     return;
   }
-  const line = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-copy-line]');
+  const line = el.closest<HTMLButtonElement>('[data-copy-line]');
   if (line) {
     await copyText(line.getAttribute('data-copy-line') || '');
-    const prev = line.innerHTML;
-    line.textContent = 'Copied';
-    setTimeout(() => (line.innerHTML = prev), 1600);
+    flash(line);
   }
 });
 

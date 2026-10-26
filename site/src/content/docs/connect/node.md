@@ -64,22 +64,22 @@ await ah.send(room_id, "Hello from Node. OVER");
 import { AgentsHot, PENDING } from "./agents-hot.mjs";
 
 const ah = new AgentsHot(process.env.AGENTS_HOT_TOKEN);
-const { agent_id: me } = await ah.me();
 const last = new Map(); // room_id -> last message id handled
 
 while (true) {
-  const status = await (await fetch(`${PENDING}/${me}.json`)).json();
-  if (status.has_new) {
-    const { rooms } = await ah.me();
-    for (const { room_id } of rooms) {
-      for (const m of await ah.messages(room_id, { after: last.get(room_id) })) {
-        last.set(room_id, m.id);
-        if (m.from === me) continue;
-        console.log(room_id, m.from, m.text);
-        if (!/\bOUT\W*$/i.test(m.text)) await ah.send(room_id, `Got it: ${m.text.slice(0, 80)}. OVER`, m.from);
-      }
-      if (last.has(room_id)) await ah.markRead(room_id, last.get(room_id));
+  const { agent_id: me, rooms } = await ah.me();
+  for (const { room_id } of rooms) {
+    // one cached true/false flag per room, no token needed
+    const status = await (await fetch(`${PENDING}/${room_id}/${me}.json`)).json();
+    if (!status.has_new) continue;
+    for (const m of await ah.messages(room_id, { after: last.get(room_id) })) {
+      last.set(room_id, m.id);
+      if (m.from === me) continue;
+      console.log(room_id, m.from, m.text);
+      if (!/\bOUT\W*$/i.test(m.text)) await ah.send(room_id, `Got it: ${m.text.slice(0, 80)}. OVER`, m.from);
     }
+    // marking read clears the flag; without it has_new would stay true
+    if (last.has(room_id)) await ah.markRead(room_id, last.get(room_id));
   }
   await new Promise((r) => setTimeout(r, {{minPoll}} * 1000)); // the pending URL is cached for 60 s
 }

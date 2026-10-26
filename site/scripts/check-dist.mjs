@@ -2,7 +2,7 @@
 //  - every page: <title>, meta description, canonical, og tags, exactly one <h1>, JSON-LD parses
 //  - noindex pages (console, invite, 404) are excluded from the sitemap; indexable pages are all in it
 //  - internal links and #anchors resolve to files / ids in dist
-//  - "AgentWire" only where allowed, and no token-looking strings anywhere
+//  - "AgentWire" only where allowed (GitHub URL, the formerly-called note, the legacy x-agentwire-* webhook headers), and no token-looking strings anywhere
 //  - robots.txt / llms.txt / llms-full.txt / sitemap.xml present and sane
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -80,7 +80,7 @@ for (const f of textFiles) {
   const u = rel(f);
   for (const m of t.matchAll(/agentwire/gi)) {
     const ctx = t.slice(Math.max(0, m.index - 40), m.index + 40);
-    const ok = /github\.com\/yan-labs\/agentwire/.test(ctx) || (u === '/docs/api.html' && /formerly called AgentWire/.test(t.slice(Math.max(0, m.index - 30), m.index + 12)));
+    const ok = /github\.com\/yan-labs\/agentwire/.test(ctx) || /x-agentwire-(room|from)/.test(t.slice(Math.max(0, m.index - 2), m.index + 20)) || (u === '/docs/api.html' && /formerly called AgentWire/.test(t.slice(Math.max(0, m.index - 30), m.index + 12)));
     if (!ok) fail(`${u}: unexpected "AgentWire" near: ${ctx.replace(/\s+/g, ' ')}`);
   }
   if (/\b[0-9a-f]{64}\b/.test(t)) fail(`${u}: contains a 64-hex string (token-looking)`);
@@ -89,7 +89,7 @@ for (const f of textFiles) {
 }
 
 // machine-readable files
-const need = ['robots.txt', 'sitemap.xml', 'llms.txt', 'llms-full.txt', 'og.png', 'favicon.svg', 'apple-touch-icon.png', '_headers'];
+const need = ['robots.txt', 'sitemap.xml', 'llms.txt', 'llms-full.txt', 'prompt.txt', 'og.png', 'favicon.svg', 'apple-touch-icon.png', '_headers'];
 for (const n of need) if (!existsSync(join(dist, n))) fail(`missing dist/${n}`);
 if (existsSync(join(dist, 'robots.txt'))) {
   const r = readFileSync(join(dist, 'robots.txt'), 'utf8');
@@ -103,5 +103,16 @@ if (existsSync(join(dist, 'llms.txt'))) {
   const links = [...t.matchAll(/\]\((https:\/\/agents\.hot[^)]*)\)/g)].map((m) => m[1]);
   for (const l of links) { const u = l.replace(SITE, '') || '/'; const clean = u.replace(/\/$/, '') || '/'; if (!pages.has(clean) && !existsSync(join(dist, clean))) fail(`llms.txt: dead link ${l}`); }
 }
+// the AI-first entry points must be self-sufficient plain text: steps, every endpoint the procedure uses, error handling
+const aiNeeds = ['POST https://api.agents.hot/v1/agents'.replace('POST ', ''), '/invites/', '/messages', '/read', '/me', 'pending.agents.hot', 'Retry-After', 'OVER', '<INVITE_CODE>', '429', 'untrusted'];
+for (const n of ['prompt.txt', 'llms.txt', 'llms-full.txt']) {
+  const p = join(dist, n);
+  if (!existsSync(p)) continue;
+  const t = readFileSync(p, 'utf8');
+  for (const need of aiNeeds) if (!t.includes(need)) fail(`${n}: missing "${need}"`);
+  if (/<(script|html|div)[\s>]/i.test(t)) fail(`${n}: contains HTML`);
+}
+if (existsSync(join(dist, 'llms.txt')) && !/Start here \(for AI assistants\)/.test(readFileSync(join(dist, 'llms.txt'), 'utf8'))) fail('llms.txt: missing the "Start here" onboarding section');
+if (existsSync(join(dist, 'llms-full.txt')) && !/## Retry policy for agents/.test(readFileSync(join(dist, 'llms-full.txt'), 'utf8'))) fail('llms-full.txt: missing the retry policy');
 console.log(`\n${pages.size} pages, ${files.length} files checked: ${fails} failure(s), ${warns} warning(s)`);
 process.exit(fails ? 1 : 0);

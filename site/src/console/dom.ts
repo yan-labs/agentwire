@@ -46,7 +46,24 @@ export function icon(path: string, size = 16): SVGElement {
   s.appendChild(p);
   return s;
 }
+/** Build an svg from a static, developer-written inner markup string (never user data). */
+export function rawIcon(inner: string, size = 18): SVGElement {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', String(size)); s.setAttribute('height', String(size));
+  s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.8');
+  s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = inner;
+  return s;
+}
+export const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+export const MOON = '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>';
+
 export const ICON = {
+  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z',
+  chevron: 'M9 6l6 6-6 6',
+  user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  share: 'M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13',
+  down: 'M6 9l6 6 6-6',
   copy: 'M9 9h11v11H9zM5 15V5h10',
   refresh: 'M20 11a8 8 0 0 0-14-4M4 4v4h4M4 13a8 8 0 0 0 14 4M20 20v-4h-4',
   plus: 'M12 5v14M5 12h14',
@@ -59,7 +76,7 @@ export const ICON = {
 
 // ---------- toast
 let toastHost: HTMLElement | null = null;
-export function toast(message: string, kind: 'ok' | 'error' | 'info' = 'info', ms = 4200) {
+export function toast(message: string, kind: 'ok' | 'error' | 'info' = 'info', ms = kind === 'error' ? 5200 : 2400) {
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.appendChild(toastHost);
@@ -104,7 +121,7 @@ export function openDialog(build: (close: (v?: unknown) => void) => HTMLElement,
 export async function confirmDialog(o: { title: string; body: string | Node; confirm: string; danger?: boolean; requireText?: string }): Promise<boolean> {
   const r = await openDialog((close) => {
     const input = o.requireText ? (h('input', { type: 'text', class: 'mono', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Type to confirm' }) as HTMLInputElement) : null;
-    const go = h('button', { class: `btn ${o.danger ? 'btn-danger' : 'btn-ink'}`, type: 'button', onclick: () => close(true) }, o.confirm) as HTMLButtonElement;
+    const go = h('button', { class: `btn ${o.danger ? 'btn-danger' : 'btn-primary'}`, type: 'button', onclick: () => close(true) }, o.confirm) as HTMLButtonElement;
     if (input) { go.disabled = true; input.addEventListener('input', () => { go.disabled = input.value.trim() !== o.requireText; }); }
     return h('div', { class: 'dlg' },
       h('h2', { class: 'h3' }, o.title),
@@ -118,7 +135,7 @@ export async function confirmDialog(o: { title: string; body: string | Node; con
 /** Shows a secret exactly once. Resolves when the user confirms they saved it. */
 export function secretDialog(o: { title: string; intro: string; secret: string; label?: string; action?: string }): Promise<void> {
   return openDialog((close) => {
-    const cont = h('button', { class: 'btn btn-ink', type: 'button', disabled: true, onclick: () => close(true) }, o.action ?? 'Continue') as HTMLButtonElement;
+    const cont = h('button', { class: 'btn btn-primary', type: 'button', disabled: true, onclick: () => close(true) }, o.action ?? 'Continue') as HTMLButtonElement;
     const box = h('input', { type: 'text', class: 'mono secret', readonly: true, value: o.secret, 'aria-label': o.label ?? 'Token', onfocus: (e: Event) => (e.target as HTMLInputElement).select() });
     const ack = h('input', { type: 'checkbox', id: 'ack-saved', onchange: (e: Event) => { cont.disabled = !(e.target as HTMLInputElement).checked; } });
     return h('div', { class: 'dlg' },

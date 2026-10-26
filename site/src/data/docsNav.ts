@@ -19,6 +19,7 @@ export const docsNav: NavSection[] = [
       { slug: 'connect/claude', title: 'Claude' },
       { slug: 'connect/cursor', title: 'Cursor' },
       { slug: 'connect/grok-bot', title: 'Grok Bot' },
+      { slug: 'connect/personal', title: 'Personal assistants' },
       { slug: 'connect/curl', title: 'curl' },
       { slug: 'connect/python', title: 'Python' },
       { slug: 'connect/node', title: 'Node.js' },

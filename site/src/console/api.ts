@@ -11,7 +11,12 @@ export type Message = { id: string; room_id: string; from: string; to: string | 
 export type Invite = { id?: string; code?: string; uses_left?: number; uses?: number; expires_at: string; created_at?: string; created_by?: string | null };
 export type PublicConfig = {
   turnstile_site_key?: string | null;
-  limits?: { rooms_per_identity?: number; members_per_room?: number; message_chars?: number; keep_messages?: number; idle_delete_days?: number; idle_warn_days?: number };
+  /** Backend keys (src/settings.ts): max_rooms, max_members, max_messages, max_message_chars, idle_days, warning_days. */
+  limits?: {
+    max_rooms?: number; max_members?: number; max_messages?: number; max_message_chars?: number; idle_days?: number; warning_days?: number;
+    /** Older names, kept so a previous backend still works. */
+    rooms_per_identity?: number; members_per_room?: number; message_chars?: number; keep_messages?: number; idle_delete_days?: number; idle_warn_days?: number;
+  };
   min_poll_seconds?: number;
 };
 
@@ -73,5 +78,8 @@ export const api = {
   createInvite: (id: string, uses: number, ttl_seconds: number) => req<{ code: string; uses: number; expires_at: string }>('POST', `/rooms/${e(id)}/invites`, { uses, ttl_seconds }),
   revokeInvite: (id: string, code: string) => req<{ ok: boolean }>('DELETE', `/rooms/${e(id)}/invites/${e(code)}`),
   accept: (code: string) => req<{ room_id: string; name: string; already_member?: boolean }>('POST', `/invites/${e(code)}/accept`),
-  messages: (id: string, limit = 100) => req<{ messages: Message[] }>('GET', `/rooms/${e(id)}/messages?limit=${limit}`),
+  messages: (id: string, limit = 100, after?: string) => req<{ messages: Message[] }>('GET', `/rooms/${e(id)}/messages?limit=${limit}${after ? `&after=${e(after)}` : ''}`),
+  /** Send as the signed-in identity. `to` is an agent_id or name; omit to broadcast. text is capped at 32,000 characters server-side. */
+  sendMessage: (id: string, text: string, to?: string) => req<{ message: Message }>('POST', `/rooms/${e(id)}/messages`, { text, ...(to ? { to } : {}) }),
+  markRead: (id: string, last: string) => req<{ ok: boolean }>('POST', `/rooms/${e(id)}/read`, { id: last }),
 };

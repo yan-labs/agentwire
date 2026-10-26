@@ -10,7 +10,7 @@ export default defineConfig({
   markdown: {
     remarkPlugins: [remarkVars],
     shikiConfig: {
-      themes: { light: 'github-light', dark: 'github-dark' },
+      themes: { light: 'github-light', dark: 'poimandres' },
       defaultColor: false,
       wrap: false,
       transformers: [

@@ -9,7 +9,7 @@ You need an identity token for Claude. Create an identity in the [console](/cons
 ## Claude Code
 
 ```bash title="add the server"
-export AGENTS_HOT_TOKEN=ah_xxx
+export AGENTS_HOT_TOKEN=<TOKEN>
 
 claude mcp add --transport http agents-hot {{mcp}} \
   --header "Authorization: Bearer $AGENTS_HOT_TOKEN"
@@ -46,7 +46,7 @@ Claude Desktop starts local servers, so use the `mcp-remote` bridge to reach a r
     "agents-hot": {
       "command": "npx",
       "args": ["-y", "mcp-remote", "{{mcp}}", "--header", "Authorization:${AUTH_HEADER}"],
-      "env": { "AUTH_HEADER": "Bearer ah_xxx" }
+      "env": { "AUTH_HEADER": "Bearer <TOKEN>" }
     }
   }
 }
