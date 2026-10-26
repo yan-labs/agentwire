@@ -1,11 +1,12 @@
-import { Room, type Env } from "./room";
+import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_JOIN } from "./room";
+import { Directory, type GlobalAgent } from "./directory";
 
-export { Room };
+export { Room, Directory };
 
 function corsHeaders(): HeadersInit {
   return {
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, PATCH, PUT, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
     "access-control-allow-headers": "authorization, content-type",
     "access-control-max-age": "86400",
   };
@@ -93,8 +94,83 @@ export default {
       return json({ ok: true, service: "agentwire", ts: new Date().toISOString() });
     }
 
-    // POST /v1/rooms
+    // Never trust internal headers from clients.
+    const clean = new Headers(request.headers);
+    for (const k of [...clean.keys()]) if (k.toLowerCase().startsWith("x-aw-")) clean.delete(k);
+    request = new Request(request, { headers: clean });
+
+    const dir = env.DIRECTORY.getByName("global");
+    const token = bearer(request);
+    let me: GlobalAgent | null = null;
+    const resolveMe = async () => (token ? (me ??= await dir.resolve(token)) : null);
+
+    // ---- Global identity ----
+    if (method === "POST" && pathname === "/v1/agents") {
+      const body = await readJson(request);
+      if (!body) return json({ error: "invalid json" }, 400);
+      const name = String(body.name || "").trim();
+      if (!name) return json({ error: "name required" }, 400);
+      if (name.length > 64) return json({ error: "name too long" }, 400);
+      const hook = parseWebhook(body);
+      if ("error" in hook) return json({ error: hook.error }, 400);
+      const { agent, token: t } = await dir.register(name, hook.webhook_url ?? null, hook.webhook_headers ?? null);
+      return json({ ...publicAgent(agent), token: t }, 201);
+    }
+    if (pathname === "/v1/me" || pathname === "/v1/agents/me" || pathname === "/v1/me/rooms" || pathname === "/v1/me/token") {
+      const a = await resolveMe();
+      if (!a) return json({ error: token ? "unauthorized" : "missing bearer token" }, 401);
+      if (method === "GET" && (pathname === "/v1/me" || pathname === "/v1/agents/me")) {
+        return json({ ...publicAgent(a), rooms: await dir.rooms(a.id) });
+      }
+      if (method === "GET" && pathname === "/v1/me/rooms") {
+        return json({ agent_id: a.id, rooms: await dir.rooms(a.id) });
+      }
+      if (method === "PATCH" && (pathname === "/v1/me" || pathname === "/v1/agents/me")) {
+        const body = await readJson(request);
+        if (!body) return json({ error: "invalid json" }, 400);
+        const hook = parseWebhook(body);
+        if ("error" in hook) return json({ error: hook.error }, 400);
+        const patch: { name?: string; webhook_url?: string | null; webhook_headers?: string | null } = {};
+        if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim().slice(0, 64);
+        if ("webhook_url" in body) patch.webhook_url = hook.webhook_url ?? null;
+        if ("webhook_headers" in body) patch.webhook_headers = hook.webhook_headers ?? null;
+        const updated = await dir.update(a.id, patch);
+        return json(publicAgent(updated!));
+      }
+      if (method === "POST" && pathname === "/v1/me/token") {
+        // Rotates ALL tokens of this identity (including a migrated legacy room token).
+        return json({ agent_id: a.id, token: await dir.rotateToken(a.id) });
+      }
+      return json({ error: "not found" }, 404);
+    }
+    if (method === "GET" && /^\/v1\/agents\/[^/]+$/.test(pathname)) {
+      const a = await dir.get(decodeURIComponent(pathname.slice(11)));
+      if (!a) return json({ error: "not found" }, 404);
+      return json({ agent_id: a.id, name: a.name, created_at: a.created_at });
+    }
+
+    // ---- Invites ----
+    const inv = /^\/v1\/invites\/([^/]+)\/accept$/.exec(pathname);
+    if (method === "POST" && inv) {
+      const a = await resolveMe();
+      if (!a) return json({ error: "global agent token required" }, 401);
+      const roomId = await dir.redeemInvite(decodeURIComponent(inv[1]));
+      if (!roomId) return json({ error: "invite invalid or expired" }, 404);
+      const h = new Headers({ "content-type": "application/json", [H_TRUSTED_JOIN]: "1" });
+      const res = await roomStub(env, roomId).fetch(
+        new Request(new URL("/internal/members", request.url).toString(), {
+          method: "POST",
+          headers: h,
+          body: JSON.stringify({ agent_id: a.id, name: a.name }),
+        })
+      );
+      return withCors(res);
+    }
+
+    // POST /v1/rooms  (with a global token the caller becomes owner + first member)
     if (method === "POST" && pathname === "/v1/rooms") {
+      const owner = await resolveMe();
+      if (token && !owner) return json({ error: "unauthorized" }, 401);
       const roomId = `room_${[...crypto.getRandomValues(new Uint8Array(12))]
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("")}`;
@@ -104,7 +180,7 @@ export default {
           new Request(request.url, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ room_id: roomId }),
+            body: JSON.stringify({ room_id: roomId, owner_id: owner?.id, owner_name: owner?.name }),
           }),
           "/internal/create"
         )
@@ -122,14 +198,16 @@ export default {
     const stub = roomStub(env, roomId);
 
     let internal = "";
+    let resolvedName: string | null = null;
     if (method === "GET" && rest === "") internal = "/internal/meta";
+    else if (method === "DELETE" && rest === "") internal = "/internal/room";
     else if (method === "POST" && rest === "/agents") internal = "/internal/agents";
     else if (method === "PATCH" && rest === "/agents/me") internal = "/internal/agents/me";
     else if (
       (method === "PUT" || method === "PATCH") &&
       rest === "/webhook"
     ) {
-      // alias: PUT/PATCH /webhook → PATCH agents/me with {webhook_url}
+      // alias: PUT/PATCH /webhook → PATCH agents/me with {webhook_url}  (per-room override)
       internal = "/internal/agents/me";
     } else if (method === "POST" && rest === "/messages") internal = "/internal/messages";
     else if (method === "GET" && rest === "/messages") internal = "/internal/messages";
@@ -137,13 +215,41 @@ export default {
     else if (method === "GET" && /^\/pending\/[^/]+$/.test(rest)) internal = "/internal" + rest;
     else if (method === "GET" && rest === "/pending") internal = "/internal/pending";
     else if (method === "POST" && rest === "/read") internal = "/internal/read";
+    else if (method === "POST" && rest === "/members") {
+      const body = await readJson(request.clone());
+      const target = body && body.agent_id ? await dir.get(String(body.agent_id)) : null;
+      if (!target) return json({ error: "unknown agent_id (the agent must register via POST /v1/agents first)" }, 404);
+      resolvedName = target.name;
+      internal = "/internal/members";
+    } else if (method === "DELETE" && /^\/members\/[^/]+$/.test(rest)) internal = "/internal" + rest;
+    else if (method === "POST" && rest === "/invites") {
+      // authorize against the room, then mint the code in the Directory
+      if (token && url.searchParams.get("token") === null) await resolveMe();
+      const h = new Headers(request.headers);
+      if (me) h.set(H_AGENT, (me as GlobalAgent).id);
+      const authRes = await stub.fetch(new Request(new URL("/internal/authz", request.url).toString(), { method: "GET", headers: h }));
+      if (!authRes.ok) return withCors(authRes);
+      const auth = (await authRes.json()) as { agent_id: string | null };
+      const body = (await readJson(request)) || {};
+      const uses = Math.min(Math.max(parseInt(String(body.uses ?? 1), 10) || 1, 1), 100);
+      const ttl = Math.min(Math.max(parseInt(String(body.ttl_seconds ?? 86400), 10) || 86400, 60), 30 * 86400);
+      const invite = await dir.createInvite(roomId, auth.agent_id, uses, ttl);
+      return json({ ...invite, accept_url: `${url.origin}/v1/invites/${invite.code}/accept` }, 201);
+    } else if (method === "POST" && rest === "/migrate") internal = "/internal/migrate";
     else return json({ error: "not found" }, 404);
 
     const internalUrl = new URL(request.url);
     internalUrl.pathname = internal;
-    const res = await stub.fetch(
-      new Request(internalUrl.toString(), request)
-    );
+    const fwd = new Request(internalUrl.toString(), request);
+    if (internal !== "/internal/pending/" && !internal.startsWith("/internal/pending/")) {
+      const t = token || url.searchParams.get("token");
+      if (t) {
+        const g = t === token ? await resolveMe() : await dir.resolve(t);
+        if (g) fwd.headers.set(H_AGENT, g.id);
+      }
+    }
+    if (resolvedName !== null) fwd.headers.set(H_AGENT_NAME, encodeURIComponent(resolvedName));
+    const res = await stub.fetch(fwd);
     return withCors(res);
   },
 } satisfies ExportedHandler<Env>;
@@ -152,4 +258,61 @@ function withCors(res: Response): Response {
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(corsHeaders())) headers.set(k, v);
   return new Response(res.body, { status: res.status, headers });
+}
+
+function bearer(req: Request): string | null {
+  const h = req.headers.get("authorization") || "";
+  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
+  return m ? m[1].trim() : null;
+}
+
+async function readJson(req: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const v = await req.json();
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseWebhook(body: Record<string, unknown>): { webhook_url?: string | null; webhook_headers?: string | null } | { error: string } {
+  const out: { webhook_url?: string | null; webhook_headers?: string | null } = {};
+  if (body.webhook_url !== undefined) {
+    if (body.webhook_url === null || body.webhook_url === "") out.webhook_url = null;
+    else {
+      const raw = String(body.webhook_url).trim();
+      try {
+        const u = new URL(raw);
+        if (u.protocol !== "https:" && u.protocol !== "http:") return { error: "webhook_url must be http(s)" };
+      } catch {
+        return { error: "invalid webhook_url" };
+      }
+      out.webhook_url = raw;
+    }
+  }
+  if (body.webhook_headers !== undefined) {
+    const raw = body.webhook_headers;
+    if (raw === null) out.webhook_headers = null;
+    else {
+      if (typeof raw !== "object" || Array.isArray(raw)) return { error: "webhook_headers must be an object of string values" };
+      const h: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (!/^[A-Za-z0-9-]{1,64}$/.test(k) || typeof v !== "string" || v.length > 4096) return { error: "webhook_headers must be an object of string values" };
+        h[k] = v;
+      }
+      out.webhook_headers = Object.keys(h).length ? JSON.stringify(h) : null;
+    }
+  }
+  return out;
+}
+
+function publicAgent(a: GlobalAgent) {
+  return {
+    agent_id: a.id,
+    name: a.name,
+    webhook_url: a.webhook_url,
+    has_webhook: Boolean(a.webhook_url),
+    has_webhook_headers: Boolean(a.webhook_headers),
+    created_at: a.created_at,
+  };
 }

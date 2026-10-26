@@ -11,15 +11,17 @@
       {
         "name": "ROOM",
         "class_name": "Room"
+      },
+      {
+        "name": "DIRECTORY",
+        "class_name": "Directory"
       }
     ]
   },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["Room"]
-    }
-  ],
+  "exports": {
+    "Room": { "type": "durable-object", "storage": "sqlite" },
+    "Directory": { "type": "durable-object", "storage": "sqlite" }
+  },
   "observability": {
     "enabled": true
   }

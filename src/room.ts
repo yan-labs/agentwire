@@ -1,8 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
 
+import type { Directory } from "./directory";
+
 export interface Env {
   ROOM: DurableObjectNamespace<Room>;
+  DIRECTORY: DurableObjectNamespace<Directory>;
 }
+
+/** Internal headers set only by the Worker after verifying a global token (stripped from client requests). */
+export const H_AGENT = "x-aw-agent-id";
+export const H_AGENT_NAME = "x-aw-agent-name";
+export const H_TRUSTED_JOIN = "x-aw-trusted-join";
 
 type Agent = {
   id: string;
@@ -27,6 +35,7 @@ type Message = {
 type RoomMeta = {
   room_id: string;
   admin_token_hash: string;
+  owner_id: string | null;
   created_at: string;
 };
 
@@ -99,15 +108,16 @@ export class Room extends DurableObject<Env> {
         CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
         CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
       `);
-      for (const col of ["webhook_headers TEXT", "last_read TEXT"]) {
+      for (const col of ["webhook_headers TEXT", "last_read TEXT", "kind TEXT"]) {
         try { this.ctx.storage.sql.exec(`ALTER TABLE agents ADD COLUMN ${col}`); } catch {}
       }
+      try { this.ctx.storage.sql.exec(`ALTER TABLE meta ADD COLUMN owner_id TEXT`); } catch {}
     });
   }
 
   private getMeta(): RoomMeta | null {
     const rows = this.ctx.storage.sql
-      .exec<RoomMeta>("SELECT room_id, admin_token_hash, created_at FROM meta LIMIT 1")
+      .exec<RoomMeta>("SELECT room_id, admin_token_hash, owner_id, created_at FROM meta LIMIT 1")
       .toArray();
     return rows[0] ?? null;
   }
@@ -135,6 +145,103 @@ export class Room extends DurableObject<Env> {
     const a = rows[0];
     if (!a) return null;
     return { ...a, webhook_url: a.webhook_url ?? null };
+  }
+
+  /** Caller = legacy per-room token, or a global identity the Worker verified (H_AGENT) that is a member here. */
+  private async findCaller(request: Request, token: string): Promise<Agent | null> {
+    const gid = request.headers.get(H_AGENT);
+    if (gid) {
+      const a = this.listAgents().find((x) => x.id === gid);
+      if (a) return a;
+    }
+    return this.findAgentByToken(token);
+  }
+
+  private dir() {
+    return this.env.DIRECTORY.getByName("global");
+  }
+
+  private async callerRole(request: Request): Promise<{ admin: boolean; agent: Agent | null; globalId: string | null }> {
+    const token = bearer(request);
+    const globalId = request.headers.get(H_AGENT);
+    if (!token) return { admin: false, agent: null, globalId };
+    return { admin: await this.isAdmin(token), agent: await this.findCaller(request, token), globalId };
+  }
+
+  private async addMember(request: Request): Promise<Response> {
+    const meta = this.getMeta();
+    if (!meta) return err("room not found", 404);
+    const trusted = request.headers.get(H_TRUSTED_JOIN) === "1";
+    const { admin, agent } = await this.callerRole(request);
+    if (!trusted && !admin && !agent) return err("only the room admin or a member can add members", 403);
+    let body: { agent_id?: string; name?: string } = {};
+    try { body = (await request.json()) as typeof body; } catch { return err("invalid json", 400); }
+    const id = String(body.agent_id || "");
+    const hdrName = request.headers.get(H_AGENT_NAME);
+    const name = String((hdrName ? decodeURIComponent(hdrName) : body.name) || id).slice(0, 64);
+    if (!id) return err("agent_id required", 400);
+    const existing = this.listAgents().find((a) => a.id === id);
+    if (!existing) {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO agents (id, name, token_hash, webhook_url, webhook_headers, created_at, kind) VALUES (?, ?, ?, NULL, NULL, ?, 'global')",
+        id, name, `global:${id}`, new Date().toISOString()
+      );
+    }
+    await this.dir().addMembership(id, meta.room_id);
+    return json({ room_id: meta.room_id, agent_id: id, name: existing ? existing.name : name, already_member: Boolean(existing) }, existing ? 200 : 201);
+  }
+
+  private async removeMember(request: Request, id: string): Promise<Response> {
+    const meta = this.getMeta();
+    if (!meta) return err("room not found", 404);
+    const { admin, agent } = await this.callerRole(request);
+    const isOwner = Boolean(agent && meta.owner_id && agent.id === meta.owner_id);
+    const isSelf = Boolean(agent && agent.id === id);
+    if (!admin && !isOwner && !isSelf) return err("only the room admin, the room owner, or the member itself can remove a member", 403);
+    const target = this.listAgents().find((a) => a.id === id);
+    if (!target) return err("not a member", 404);
+    this.ctx.storage.sql.exec("DELETE FROM agents WHERE id = ?", id);
+    await this.dir().removeMembership(id, meta.room_id);
+    if (this.kvGet("floor") === id) this.kvSet("floor", null);
+    return json({ ok: true, room_id: meta.room_id, removed: id });
+  }
+
+  /** Who may manage this room (invites): admin or any member. */
+  private async authz(request: Request): Promise<Response> {
+    const meta = this.getMeta();
+    if (!meta) return err("room not found", 404);
+    const { admin, agent } = await this.callerRole(request);
+    if (!admin && !agent) return err("only the room admin or a member can do this", 403);
+    return json({ ok: true, room_id: meta.room_id, agent_id: agent ? agent.id : null, admin });
+  }
+
+  /** Admin-only, idempotent: register every member of this room as a global identity (same id + same token). */
+  private async migrate(request: Request): Promise<Response> {
+    const meta = this.getMeta();
+    if (!meta) return err("room not found", 404);
+    const { admin } = await this.callerRole(request);
+    if (!admin) return err("admin token required", 403);
+    const out = [];
+    for (const a of this.listAgents()) {
+      if (a.token_hash.startsWith("global:")) { await this.dir().addMembership(a.id, meta.room_id); out.push({ id: a.id, name: a.name, created: false }); continue; }
+      // Global webhook defaults to the room webhook; the room row keeps it as a per-room override.
+      const r = await this.dir().importAgent({ id: a.id, name: a.name, token_hash: a.token_hash, webhook_url: a.webhook_url, webhook_headers: a.webhook_headers, created_at: a.created_at }, meta.room_id);
+      out.push({ id: a.id, name: a.name, created: r.created });
+    }
+    return json({ ok: true, room_id: meta.room_id, agents: out });
+  }
+
+  private async deleteRoom(request: Request): Promise<Response> {
+    const meta = this.getMeta();
+    if (!meta) return err("room not found", 404);
+    const { admin, agent } = await this.callerRole(request);
+    const isOwner = Boolean(agent && meta.owner_id && agent.id === meta.owner_id);
+    if (!admin && !isOwner) return err("only the room admin or owner can delete the room", 403);
+    await this.dir().dropRoom(meta.room_id);
+    for (const [w, st] of this.streams) { clearInterval(st.timer); w.close().catch(() => undefined); }
+    this.streams.clear();
+    await this.ctx.storage.deleteAll();
+    return json({ ok: true, deleted: meta.room_id });
   }
 
   private streams = new Map<WritableStreamDefaultWriter<Uint8Array>, { agentId: string | null; admin: boolean; timer: ReturnType<typeof setInterval> }>();
@@ -181,7 +288,7 @@ export class Room extends DurableObject<Env> {
   private async stream(request: Request, url: URL): Promise<Response> {
     const token = bearer(request) || url.searchParams.get("token");
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     const admin = await this.isAdmin(token);
     if (!agent && !admin) return err("unauthorized", 401);
     const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -241,7 +348,7 @@ export class Room extends DurableObject<Env> {
   private async pending(request: Request): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     if (!agent) return err("unauthorized", 401);
     const msgs = this.rowsAfter(agent.last_read).filter((m) => m.from !== agent.id && this.visible(m, agent.id, false));
     const last = msgs[msgs.length - 1];
@@ -259,7 +366,7 @@ export class Room extends DurableObject<Env> {
   private async markRead(request: Request): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     if (!agent) return err("unauthorized", 401);
     let body: { id?: string } = {};
     try { body = (await request.json()) as typeof body; } catch { return err("invalid json", 400); }
@@ -286,7 +393,7 @@ export class Room extends DurableObject<Env> {
         status: 204,
         headers: {
           "access-control-allow-origin": "*",
-          "access-control-allow-methods": "GET, POST, PATCH, PUT, OPTIONS",
+          "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
           "access-control-allow-headers": "authorization, content-type",
           "access-control-max-age": "86400",
         },
@@ -316,6 +423,11 @@ export class Room extends DurableObject<Env> {
       if (method === "GET" && path.startsWith("/internal/pending/")) return this.publicPending(decodeURIComponent(path.slice(18)));
       if (method === "GET" && path === "/internal/pending") return await this.pending(request);
       if (method === "POST" && path === "/internal/read") return await this.markRead(request);
+      if (method === "POST" && path === "/internal/members") return await this.addMember(request);
+      if (method === "DELETE" && path.startsWith("/internal/members/")) return await this.removeMember(request, decodeURIComponent(path.slice(18)));
+      if (method === "GET" && path === "/internal/authz") return await this.authz(request);
+      if (method === "POST" && path === "/internal/migrate") return await this.migrate(request);
+      if (method === "DELETE" && path === "/internal/room") return await this.deleteRoom(request);
       return err("not found", 404);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -328,9 +440,9 @@ export class Room extends DurableObject<Env> {
     if (existing) {
       return err("room already exists", 409);
     }
-    let body: { room_id?: string } = {};
+    let body: { room_id?: string; owner_id?: string; owner_name?: string } = {};
     try {
-      body = (await request.json()) as { room_id?: string };
+      body = (await request.json()) as typeof body;
     } catch {
       body = {};
     }
@@ -338,13 +450,22 @@ export class Room extends DurableObject<Env> {
     const admin_token = randomToken(32);
     const admin_token_hash = await sha256Hex(admin_token);
     const created_at = new Date().toISOString();
+    const owner_id = body.owner_id || null;
     this.ctx.storage.sql.exec(
-      "INSERT INTO meta (room_id, admin_token_hash, created_at) VALUES (?, ?, ?)",
+      "INSERT INTO meta (room_id, admin_token_hash, owner_id, created_at) VALUES (?, ?, ?, ?)",
       room_id,
       admin_token_hash,
+      owner_id,
       created_at
     );
-    return json({ room_id, admin_token, created_at });
+    if (owner_id) {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO agents (id, name, token_hash, webhook_url, webhook_headers, created_at, kind) VALUES (?, ?, ?, NULL, NULL, ?, 'global')",
+        owner_id, (body.owner_name || owner_id).slice(0, 64), `global:${owner_id}`, created_at
+      );
+      await this.dir().addMembership(owner_id, room_id);
+    }
+    return json({ room_id, admin_token, owner_id, created_at });
   }
 
   private async roomMeta(request: Request): Promise<Response> {
@@ -352,18 +473,21 @@ export class Room extends DurableObject<Env> {
     if (!token) return err("missing bearer token", 401);
     const meta = this.getMeta();
     if (!meta) return err("room not found", 404);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     const admin = await this.isAdmin(token);
     if (!agent && !admin) return err("unauthorized", 401);
     const agents = this.listAgents().map((a) => ({
       id: a.id,
       name: a.name,
+      kind: a.token_hash.startsWith("global:") ? "global" : "legacy",
+      has_room_webhook: Boolean(a.webhook_url),
       has_webhook: Boolean(a.webhook_url),
       has_webhook_headers: Boolean(a.webhook_headers),
       created_at: a.created_at,
     }));
     return json({
       room_id: meta.room_id,
+      owner_id: meta.owner_id ?? null,
       created_at: meta.created_at,
       agents,
       ...this.state(),
@@ -431,7 +555,7 @@ export class Room extends DurableObject<Env> {
   private async updateMe(request: Request): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     if (!agent) return err("unauthorized", 401);
 
     let body: { webhook_url?: string | null; name?: string; webhook_headers?: unknown } = {};
@@ -489,7 +613,7 @@ export class Room extends DurableObject<Env> {
   private async postMessage(request: Request): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     if (!agent) return err("unauthorized", 401);
     const meta = this.getMeta();
     if (!meta) return err("room not found", 404);
@@ -556,12 +680,20 @@ export class Room extends DurableObject<Env> {
     this.broadcast(message);
 
     // Fire-and-forget webhook fan-out (not to sender; respect `to` if set)
-    const peers = this.listAgents().filter((a) => {
+    const candidates = this.listAgents().filter((a) => {
       if (a.id === agent.id) return false;
-      if (!a.webhook_url) return false;
       if (to && a.id !== to) return false;
       return true;
     });
+    // Per-room webhook wins; otherwise fall back to the identity-level webhook in the Directory.
+    const missing = candidates.filter((a) => !a.webhook_url).map((a) => a.id);
+    let globalHooks: Record<string, { webhook_url: string | null; webhook_headers: string | null }> = {};
+    if (missing.length) {
+      try { globalHooks = await this.dir().webhooks(missing); } catch { globalHooks = {}; }
+    }
+    const peers = candidates
+      .map((a) => (a.webhook_url ? a : { ...a, webhook_url: globalHooks[a.id]?.webhook_url ?? null, webhook_headers: globalHooks[a.id]?.webhook_headers ?? null }))
+      .filter((a) => Boolean(a.webhook_url));
     for (const peer of peers) {
       const url = peer.webhook_url!;
       this.ctx.waitUntil(
@@ -590,7 +722,7 @@ export class Room extends DurableObject<Env> {
   private async getMessages(request: Request, url: URL): Promise<Response> {
     const token = bearer(request);
     if (!token) return err("missing bearer token", 401);
-    const agent = await this.findAgentByToken(token);
+    const agent = await this.findCaller(request, token);
     const admin = await this.isAdmin(token);
     if (!agent && !admin) return err("unauthorized", 401);
 
