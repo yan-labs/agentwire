@@ -1,5 +1,5 @@
-import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_JOIN } from "./room";
-import { Directory, type GlobalAgent } from "./directory";
+import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_JOIN, H_TRUSTED_LEAVE } from "./room";
+import { Directory, type GlobalAgent, sha256Hex } from "./directory";
 
 export { Room, Directory };
 
@@ -137,6 +137,9 @@ export default {
         const updated = await dir.update(a.id, patch);
         return json(publicAgent(updated!));
       }
+      if (method === "DELETE" && (pathname === "/v1/me" || pathname === "/v1/agents/me")) {
+        return json(await deleteIdentity(env, a.id, request.url));
+      }
       if (method === "POST" && pathname === "/v1/me/token") {
         // Rotates ALL tokens of this identity (including a migrated legacy room token).
         return json({ agent_id: a.id, token: await dir.rotateToken(a.id) });
@@ -147,6 +150,18 @@ export default {
       const a = await dir.get(decodeURIComponent(pathname.slice(11)));
       if (!a) return json({ error: "not found" }, 404);
       return json({ agent_id: a.id, name: a.name, created_at: a.created_at });
+    }
+
+    // ---- Operator (OPERATOR_TOKEN secret): list / delete identities ----
+    if (pathname === "/v1/admin/agents" || /^\/v1\/admin\/agents\/[^/]+$/.test(pathname)) {
+      if (!env.OPERATOR_TOKEN || !token || !(await safeEqual(token, env.OPERATOR_TOKEN))) return json({ error: "operator token required" }, 403);
+      if (method === "GET" && pathname === "/v1/admin/agents") return json({ agents: await dir.listAgents() });
+      if (method === "DELETE" && pathname !== "/v1/admin/agents") {
+        const id = decodeURIComponent(pathname.slice("/v1/admin/agents/".length));
+        if (!(await dir.get(id))) return json({ error: "not found" }, 404);
+        return json(await deleteIdentity(env, id, request.url));
+      }
+      return json({ error: "not found" }, 404);
     }
 
     // ---- Invites ----
@@ -236,6 +251,9 @@ export default {
       const invite = await dir.createInvite(roomId, auth.agent_id, uses, ttl);
       return json({ ...invite, accept_url: `${url.origin}/v1/invites/${invite.code}/accept` }, 201);
     } else if (method === "POST" && rest === "/migrate") internal = "/internal/migrate";
+    else if (method === "GET" && rest === "/members") internal = "/internal/members";
+    else if ((method === "PUT" || method === "DELETE") && /^\/admins\/[^/]+$/.test(rest)) internal = "/internal" + rest;
+    else if (method === "POST" && rest === "/owner") internal = "/internal/owner";
     else return json({ error: "not found" }, 404);
 
     const internalUrl = new URL(request.url);
@@ -315,4 +333,27 @@ function publicAgent(a: GlobalAgent) {
     has_webhook_headers: Boolean(a.webhook_headers),
     created_at: a.created_at,
   };
+}
+
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  const [x, y] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return d === 0;
+}
+
+/** Remove an identity from every room (handing off ownership), then delete it and all its tokens. */
+async function deleteIdentity(env: Env, id: string, base: string) {
+  const dir = env.DIRECTORY.getByName("global");
+  const rooms = await dir.rooms(id);
+  const left = [];
+  for (const r of rooms) {
+    const res = await env.ROOM.getByName(r.room_id).fetch(
+      new Request(new URL(`/internal/members/${encodeURIComponent(id)}`, base).toString(), { method: "DELETE", headers: { [H_TRUSTED_LEAVE]: "1" } })
+    );
+    const j = (await res.json().catch(() => ({}))) as { new_owner?: string | null };
+    left.push({ room_id: r.room_id, status: res.status, new_owner: j.new_owner ?? null });
+  }
+  await dir.deleteAgent(id);
+  return { ok: true, deleted: id, rooms_left: left };
 }

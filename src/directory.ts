@@ -104,6 +104,19 @@ export class Directory extends DurableObject<Env> {
     return out;
   }
 
+  /** Removes the identity, all its tokens and memberships. Rooms are cleaned up by the caller first. */
+  deleteAgent(id: string) {
+    this.sql.exec("DELETE FROM tokens WHERE agent_id = ?", id);
+    this.sql.exec("DELETE FROM memberships WHERE agent_id = ?", id);
+    this.sql.exec("DELETE FROM agents WHERE id = ?", id);
+  }
+
+  listAgents() {
+    return this.sql.exec<{ id: string; name: string; created_at: string; rooms: number }>(
+      "SELECT a.id, a.name, a.created_at, (SELECT COUNT(*) FROM memberships m WHERE m.agent_id = a.id) AS rooms FROM agents a ORDER BY a.created_at ASC"
+    ).toArray();
+  }
+
   addMembership(agent_id: string, room_id: string) {
     this.sql.exec("INSERT OR IGNORE INTO memberships (agent_id,room_id,joined_at) VALUES (?,?,?)", agent_id, room_id, new Date().toISOString());
   }

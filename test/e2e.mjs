@@ -97,34 +97,81 @@ ok((await call("GET", `/v1/rooms/${GR}/pending/${B.j.agent_id}`)).j?.has_new ===
 const sp = await fetch(`${BASE}/v1/rooms/${GR}/messages`, { method: "POST", headers: { authorization: "Bearer junk", "x-aw-agent-id": A.j.agent_id, "content-type": "application/json" }, body: JSON.stringify({ text: "spoof" }) });
 ok(sp.status === 401, "security: spoofed x-aw-agent-id rejected");
 
-// invites
+// roles
+const roleOf = async (room, tok, id) => (await call("GET", `/v1/rooms/${room}/members`, tok)).j?.members?.find((m) => m.agent_id === id)?.role;
+ok((await roleOf(GR, B.j.token, A.j.agent_id)) === "owner" && (await roleOf(GR, B.j.token, B.j.agent_id)) === "member", "roles: member list shows owner/member");
 const C = await call("POST", "/v1/agents", null, { name: "gamma" });
+const D = await call("POST", "/v1/agents", null, { name: "delta" });
+r = await call("POST", `/v1/rooms/${GR}/invites`, B.j.token, { uses: 1 });
+ok(r.status === 403, "roles: plain member cannot create invite");
+r = await call("PUT", `/v1/rooms/${GR}/admins/${B.j.agent_id}`, B.j.token);
+ok(r.status === 403, "roles: member cannot promote self");
+r = await call("PUT", `/v1/rooms/${GR}/admins/${B.j.agent_id}`, A.j.token);
+ok(r.status === 200 && (await roleOf(GR, A.j.token, B.j.agent_id)) === "admin", "roles: owner makes beta admin");
+
+// invites (admin)
 const iv = await call("POST", `/v1/rooms/${GR}/invites`, B.j.token, { uses: 1 });
-ok(iv.status === 201 && iv.j.code, "invites: member creates invite");
+ok(iv.status === 201 && iv.j.code, "invites: admin creates invite");
 r = await call("POST", `/v1/invites/${iv.j.code}/accept`, C.j.token);
 ok(r.status === 201 && r.j.agent_id === C.j.agent_id, "invites: gamma joins via code");
 r = await call("POST", `/v1/invites/${iv.j.code}/accept`, C.j.token);
 ok(r.status === 404, "invites: single-use code consumed");
+r = await call("POST", `/v1/rooms/${GR}/members`, C.j.token, { agent_id: D.j.agent_id });
+ok(r.status === 403, "roles: plain member cannot add");
+r = await call("POST", `/v1/rooms/${GR}/members`, B.j.token, { agent_id: D.j.agent_id });
+ok(r.status === 201, "roles: admin adds delta");
 
-// removal
+// removal rules
 r = await call("DELETE", `/v1/rooms/${GR}/members/${A.j.agent_id}`, B.j.token);
-ok(r.status === 403, "remove: plain member cannot remove owner");
-r = await call("DELETE", `/v1/rooms/${GR}/members/${B.j.agent_id}`, A.j.token);
-ok(r.status === 200, "remove: owner removes beta");
-r = await call("POST", `/v1/rooms/${GR}/messages`, B.j.token, { text: "after removal" });
-ok(r.status === 401, "remove: beta can no longer post");
-r = await call("GET", "/v1/me/rooms", B.j.token);
-ok(!r.j.rooms.some((x) => x.room_id === GR), "remove: room gone from beta's list");
-r = await call("DELETE", `/v1/rooms/${GR}/members/${C.j.agent_id}`, C.j.token);
+ok(r.status === 403, "remove: admin cannot remove owner");
+r = await call("PUT", `/v1/rooms/${GR}/admins/${D.j.agent_id}`, A.j.token);
+r = await call("DELETE", `/v1/rooms/${GR}/members/${D.j.agent_id}`, B.j.token);
+ok(r.status === 403, "remove: admin cannot remove another admin");
+r = await call("DELETE", `/v1/rooms/${GR}/admins/${D.j.agent_id}`, A.j.token);
+ok(r.status === 200 && (await roleOf(GR, A.j.token, D.j.agent_id)) === "member", "roles: owner demotes delta");
+r = await call("DELETE", `/v1/rooms/${GR}/members/${C.j.agent_id}`, B.j.token);
+ok(r.status === 200, "remove: admin removes plain member gamma");
+r = await call("POST", `/v1/rooms/${GR}/messages`, C.j.token, { text: "after removal" });
+ok(r.status === 401, "remove: gamma can no longer post");
+r = await call("GET", "/v1/me/rooms", C.j.token);
+ok(!r.j.rooms.some((x) => x.room_id === GR), "remove: room gone from gamma's list");
+r = await call("DELETE", `/v1/rooms/${GR}/members/${D.j.agent_id}`, D.j.token);
 ok(r.status === 200, "remove: member can leave");
+r = await call("DELETE", `/v1/rooms/${GR}/members/${A.j.agent_id}`, A.j.token);
+ok(r.status === 403, "remove: owner cannot leave without transfer");
+
+// ownership transfer
+r = await call("POST", `/v1/rooms/${GR}/owner`, B.j.token, { agent_id: B.j.agent_id });
+ok(r.status === 403, "owner: admin cannot take ownership");
+r = await call("POST", `/v1/rooms/${GR}/owner`, A.j.token, { agent_id: B.j.agent_id });
+ok(r.status === 200 && (await roleOf(GR, B.j.token, B.j.agent_id)) === "owner" && (await roleOf(GR, B.j.token, A.j.agent_id)) === "admin", "owner: transfer to beta, alpha becomes admin");
+// legacy admin_token == owner level
+r = await call("POST", `/v1/rooms/${R}/owner`, ADMIN, { agent_id: L1.j.agent_id });
+ok(r.status === 200 && (await roleOf(R, L1.j.token, L1.j.agent_id)) === "owner", "owner: admin_token sets legacy room owner");
+r = await call("PUT", `/v1/rooms/${R}/admins/${L2.j.agent_id}`, L1.j.token);
+ok(r.status === 200, "owner: legacy-token owner promotes admin");
+r = await call("POST", `/v1/rooms/${R}/messages`, L1.j.token, { text: "owner still posts" });
+ok(r.status === 201, "owner: legacy owner can still post");
+
+// identity deletion
+r = await call("DELETE", "/v1/me", B.j.token);
+ok(r.status === 200 && r.j.rooms_left.length === 2, "delete: beta (owner) deletes itself, leaves 2 rooms");
+ok(r.j.rooms_left.find((x) => x.room_id === GR)?.new_owner === A.j.agent_id, "delete: ownership handed to admin alpha");
+r = await call("GET", "/v1/me", B.j.token);
+ok(r.status === 401, "delete: beta token invalid");
+r = await call("GET", `/v1/rooms/${GR}/members`, A.j.token);
+ok(!r.j.members.some((m) => m.agent_id === B.j.agent_id), "delete: beta gone from member list");
 
 // cleanup
 r = await call("DELETE", `/v1/rooms/${GR}`, A.j.token);
 ok(r.status === 200, "cleanup: owner deletes room");
 r = await call("DELETE", `/v1/rooms/${R}`, ADMIN);
 ok(r.status === 200, "cleanup: admin deletes legacy room");
-r = await call("GET", "/v1/me/rooms", B.j.token);
-ok(r.j.rooms.length === 0, "cleanup: memberships dropped");
+for (const t of [A, C, D, L1, L2]) {
+  const tok = t.j.token;
+  r = await call("DELETE", "/v1/me", tok);
+  ok(r.status === 200 && (await call("GET", "/v1/me", tok)).status === 401, `cleanup: delete identity ${t.j.name}`);
+}
 console.log(fails ? `${fails} FAILED` : "ALL PASS");
 server?.close();
 process.exit(fails ? 1 : 0);
