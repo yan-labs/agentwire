@@ -43,13 +43,17 @@ export class D1Directory {
     this.invalidate(id); return token;
   }
   async importAgent(a: {id:string;name:string;token_hash:string;webhook_url:string|null;webhook_headers:string|null;created_at:string}, room: string) {
-    const exists = await this.get(a.id);
-    await this.db.batch([
-      this.stmt("INSERT OR IGNORE INTO agents(id,name,webhook_url,webhook_headers,created_at) SELECT ?,?,?,?,? WHERE (SELECT n FROM capacity WHERE kind='agents')<?",a.id,a.name,a.webhook_url,a.webhook_headers,a.created_at,this.maxAgents),
-      this.stmt('INSERT OR IGNORE INTO tokens SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM agents WHERE id=?)',a.token_hash,a.id,a.created_at,a.id),
+    const result=await this.db.batch([
+      this.stmt("INSERT OR IGNORE INTO agents(id,name,webhook_url,webhook_headers,created_at) SELECT ?,?,?,?,? WHERE (SELECT n FROM capacity WHERE kind='agents')<? AND NOT EXISTS(SELECT 1 FROM identity_imports WHERE id=?)",a.id,a.name,a.webhook_url,a.webhook_headers,a.created_at,this.maxAgents,a.id),
+      // Only the identity inserted in this transaction may receive the legacy hash.
+      this.stmt('INSERT OR IGNORE INTO tokens SELECT ?,?,? WHERE changes()=1',a.token_hash,a.id,a.created_at),
+      this.stmt('INSERT OR IGNORE INTO identity_imports SELECT id FROM agents WHERE id=?',a.id),
     ]);
-    if(!await this.get(a.id)) throw new Error('global identity limit');
-    await this.addMembership(a.id,room); return {id:a.id,created:!exists};
+    if(!await this.get(a.id)) {
+      if(await this.stmt('SELECT 1 FROM identity_imports WHERE id=?',a.id).first()) return {id:a.id,created:false};
+      throw new Error('global identity limit');
+    }
+    await this.addMembership(a.id,room); return {id:a.id,created:result[0].meta.changes>0};
   }
   async webhooks(ids: string[]) {
     const out: Record<string, GlobalAgent> = {};
@@ -62,7 +66,7 @@ export class D1Directory {
     this.invalidate(id); return this.get(id);
   }
   async deleteAgent(id: string) {
-    await this.db.batch(['tokens','memberships','webhook_pauses','agents'].map(t=>this.stmt(`DELETE FROM ${t} WHERE ${t==='agents'?'id':'agent_id'}=?`,id)));
+    await this.db.batch([this.stmt('INSERT OR IGNORE INTO identity_imports VALUES(?)',id),...['tokens','memberships','webhook_pauses','agents'].map(t=>this.stmt(`DELETE FROM ${t} WHERE ${t==='agents'?'id':'agent_id'}=?`,id))]);
     this.invalidate(id);
   }
   async listAgents() { return (await this.stmt('SELECT a.id,a.name,a.created_at,(SELECT COUNT(*) FROM memberships m WHERE m.agent_id=a.id) AS rooms FROM agents a ORDER BY a.created_at').all()).results; }

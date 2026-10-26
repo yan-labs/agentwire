@@ -17,7 +17,7 @@ export async function integrateTests(options) {
   return {status:r.status,data:[101,204].includes(r.status)?null:await r.json(),headers:r.headers,webSocket:r.webSocket};
  }
  try {
-  const db=await mf.getD1Database('DB');await db.exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+  const db=await mf.getD1Database('DB');await db.exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
   ok(JSON.parse(readFileSync('wrangler.jsonc','utf8')).workers_dev===true,'production workers.dev remains enabled');
   ok(JSON.parse(readFileSync('ops/edge-rules.json','utf8')).emergency_rule.expression===JSON.parse(readFileSync('wrangler.jsonc','utf8')).vars.WAF_API_EXPRESSION,'WAF template matches runtime and exempts billing control paths');
   const ns=await mf.getDurableObjectNamespace('ROOM'),kv=await mf.getKVNamespace('PENDING');
@@ -76,7 +76,7 @@ export async function integrateTests(options) {
  } finally {await mf.dispose();}
  const readonly=new Miniflare(convertV4MiniflareOptions({...options,name:'read-only-test',bindings:{...options.bindings,BUDGET_ENABLED:'true'}}));
  try {
-  await (await readonly.getD1Database('DB')).exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+  await (await readonly.getD1Database('DB')).exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
   await (await readonly.getKVNamespace('PENDING')).put('budget',JSON.stringify({level:3,month:'2026-10',reason:'fixture'}));
   const ack=await readonly.dispatchFetch('http://local/v1/rooms/missing/messages?ack=true');
   const plain=await readonly.dispatchFetch('http://local/v1/rooms/missing/messages');

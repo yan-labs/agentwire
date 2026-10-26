@@ -13,7 +13,7 @@ await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-integrate/cost-worker
 const config=JSON.parse(readFileSync('test/wrangler.local.jsonc','utf8'));
 const mf=new Miniflare(convertV4MiniflareOptions({name:'cost-test',modules:true,modulesRoot:'/tmp/aw-integrate',scriptPath:'/tmp/aw-integrate/cost-worker.mjs',compatibilityDate:'2026-05-03',compatibilityFlags:['nodejs_compat'],cf:false,log:new Log(LogLevel.ERROR),durableObjects:Object.fromEntries(config.durable_objects.bindings.map(b=>[b.name,{className:b.class_name,useSQLite:true}])),d1Databases:['DB'],kvNamespaces:['PENDING'],r2Buckets:['UNREAD'],ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:{limit:10000,period:60}}])),bindings:{...config.vars},outboundService:async()=>new Response(null,{status:200})}));
 try {
- const db=await mf.getD1Database('DB');await db.exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+ const db=await mf.getD1Database('DB');await db.exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
  const ns=await mf.getDurableObjectNamespace('ROOM');
  const call=async(method,path,token,body)=>{const r=await mf.dispatchFetch('http://local'+path,{method,headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)});assert.ok(r.ok);return r.json();};
  const cases=[];

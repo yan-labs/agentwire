@@ -163,3 +163,10 @@ export class Directory extends DurableObject<Env> {
     return r.room_id;
   }
 }
+
+export async function safeEqual(a: string, b: string): Promise<boolean> {
+  const [x, y] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return d === 0;
+}

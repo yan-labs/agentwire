@@ -6,7 +6,7 @@ export async function limitTests(options) {
  const mf=new Miniflare(convertV4MiniflareOptions(next));let count=0;
  const ok=(v,label)=>{assert.ok(v,label);count++;console.log(`PASS ${label}`);};
  try {
- const db=await mf.getD1Database('DB');await db.exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+ const db=await mf.getD1Database('DB');await db.exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
  async function call(method,path,token,body){const r=await mf.dispatchFetch('http://local'+path,{method,headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json(),headers:r.headers};}
  const a=(await call('POST','/v1/agents',null,{name:'a'})).data,b=(await call('POST','/v1/agents',null,{name:'b'})).data,c=(await call('POST','/v1/agents',null,{name:'c'})).data;
  const r=(await call('POST','/v1/rooms',a.token)).data.room_id,path=`/v1/rooms/${r}`;

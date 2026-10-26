@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-import type { Directory, GlobalAgent } from "./directory";
+import { safeEqual, type Directory, type GlobalAgent } from "./directory";
 import { directory } from "./d1-directory";
 import { readObject } from './body';
 import { getBudget } from './budget';
@@ -367,15 +367,15 @@ export class Room extends DurableObject<Env> {
     return json({ ok: true, room_id: meta.room_id, agent_id: agent ? agent.id : null, admin });
   }
 
-  /** Admin-only, idempotent: register every member of this room as a global identity (same id + same token). */
+  /** Operator-only migration; existing identities keep their current credentials. */
   private async migrate(request: Request): Promise<Response> {
     const meta = this.getMeta();
     if (!meta) return err("room not found", 404);
-    const { admin } = await this.callerRole(request);
-    if (!admin) return err("admin token required", 403);
+    const token=bearer(request);
+    if(this.env.MIGRATION_ENABLED!=='true'||!this.env.OPERATOR_TOKEN||!token||!await safeEqual(token,this.env.OPERATOR_TOKEN)) return err('forbidden',403);
     const out = [];
     for (const a of this.listAgents()) {
-      if (a.token_hash.startsWith("global:")) { await this.dir().addMembership(a.id, meta.room_id); out.push({ id: a.id, name: a.name, created: false }); continue; }
+      if (a.token_hash.startsWith("global:")) { if(await this.dir().get(a.id)) await this.dir().addMembership(a.id, meta.room_id); out.push({ id: a.id, name: a.name, created: false }); continue; }
       // Global webhook defaults to the room webhook; the room row keeps it as a per-room override.
       const r = await this.dir().importAgent({ id: a.id, name: a.name, token_hash: a.token_hash, webhook_url: a.webhook_url, webhook_headers: a.webhook_headers, created_at: a.created_at }, meta.room_id);
       out.push({ id: a.id, name: a.name, created: r.created });
@@ -433,10 +433,11 @@ export class Room extends DurableObject<Env> {
     const anchor = anchorId
       ? this.ctx.storage.sql.exec<{ created_at: string; id: string }>("SELECT created_at, id FROM messages WHERE id = ? OR created_at = ? LIMIT 1", anchorId, anchorId).toArray()[0]
       : undefined;
+    const cursorTime=anchorId ? this.kvGet(`cursor:${anchorId}`) || (Number.isFinite(Date.parse(anchorId)) ? anchorId : null) : null;
     const rows = anchor
       ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? OR (created_at = ? AND id > ?) ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`, anchor.created_at, anchor.created_at, anchor.id).toArray()
-      : anchorId
-        ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`, (this.kvGet(`cursor:${anchorId}`) || anchorId)).toArray()
+      : cursorTime
+        ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`, cursorTime).toArray()
         : this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`).toArray();
     return rows.map((r) => ({ id: r.id, room_id: r.room_id, from: r.from_agent, to: r.to_agent ?? null, text: r.text, meta: r.meta ? JSON.parse(r.meta) : null, created_at: r.created_at }));
   }
@@ -884,7 +885,6 @@ export class Room extends DurableObject<Env> {
     this.kvSet('last_activity', created_at); this.kvSet('idle_warned', null);
     await this.enqueueHooks(message);
     await this.queuePending(); await this.schedule();
-    this.ctx.waitUntil(this.processHooks());
     metric('message');
 
     return json({ message }, 201);
@@ -985,7 +985,7 @@ export class Room extends DurableObject<Env> {
     return Date.parse(this.kvGet('last_activity')||this.ctx.storage.sql.exec<{created_at:string}>('SELECT created_at FROM messages ORDER BY created_at DESC LIMIT 1').toArray()[0]?.created_at||this.getMeta()!.created_at);
   }
   private async schedule() {
-    if(!this.getMeta()) return;
+    if(!this.getMeta()||this.hookProcessing) return;
     const due: number[]=[];
     const retry=this.ctx.storage.sql.exec<{due:number}>('SELECT MIN(due) AS due FROM webhook_jobs').toArray()[0]?.due;
     if(retry) due.push(retry);
@@ -1099,7 +1099,7 @@ export class Room extends DurableObject<Env> {
           await this.queuePending();
         }
       }
-    } finally {this.hookProcessing=false; await this.schedule();}
+    } finally {this.hookProcessing=false;}
   }
 
   private async getMessages(request: Request, url: URL): Promise<Response> {
@@ -1125,8 +1125,8 @@ export class Room extends DurableObject<Env> {
     };
 
     let rows: Row[];
-    if (after) {
-      // after can be message id or ISO timestamp
+    if (after && (Number.isFinite(Date.parse(after)) || this.kvGet(`cursor:${after}`) || this.ctx.storage.sql.exec('SELECT 1 FROM messages WHERE id=?',after).toArray().length)) {
+      // Known message IDs and timestamps are incremental; expired IDs return the retained window.
       const anchor = this.ctx.storage.sql
         .exec<{ created_at: string; id: string }>(
           "SELECT created_at, id FROM messages WHERE id = ? OR created_at = ? LIMIT 1",

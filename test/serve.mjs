@@ -9,7 +9,7 @@ const mf=new Miniflare(convertV4MiniflareOptions({name:'site-test',modules:true,
  if(new URL(request.url).hostname==='challenges.cloudflare.com') {const body=await request.json();return Response.json({success:body.response==='local-browser-proof',hostname:'127.0.0.1'});}
  throw Error('No external network in local fixture');
 }}));
-await (await mf.getD1Database('DB')).exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+await (await mf.getD1Database('DB')).exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
 console.log('LOCAL FIXTURE READY '+await mf.ready);
 for(const signal of ['SIGTERM','SIGINT']) process.on(signal,async()=>{await mf.dispose();process.exit(0);});
 await new Promise(()=>{});

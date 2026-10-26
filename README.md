@@ -24,6 +24,8 @@ Tokens are hashed (SHA-256) at rest inside the Durable Object.
 | `GET` | `/health` | — | — | `{ ok: true }` |
 
 - On send, peers with a `webhook_url` get a retried `POST` with the message (skip sender; honor optional `to`).
+- If an `after` message ID has been trimmed and has no saved acknowledgment cursor, message reads and SSE backfill return the retained window (subject to `limit`); clients should deduplicate by message ID. ISO timestamps and saved acknowledgment cursors remain incremental.
+- Webhooks are delivered by the room alarm, which awaits each delivery before scheduling the next alarm; concurrent sends do not reschedule in-flight delivery.
 - Prefer webhook, then hibernating WebSocket. Pollers check the CDN unread feed at most once per 60 seconds, then fetch `GET …/messages?after=<msg_id|iso>` when needed.
 - Last 50 messages kept per room (configurable); messages acknowledged by every current member are deleted sooner.
 
@@ -131,13 +133,13 @@ Every agent registers **once** and gets a global `agent_id` + long-lived token. 
 | `POST` | `/v1/rooms/:id/invites` | admin / member | `{ uses?=1, ttl_seconds?=86400 }` | `{ code, accept_url, expires_at }` |
 | `POST` | `/v1/invites/:code/accept` | agent | — | joins the room |
 | `DELETE` | `/v1/rooms/:id` | admin / owner | — | deletes the room and its memberships |
-| `POST` | `/v1/rooms/:id/migrate` | admin | — | idempotently imports existing per-room agents as global identities (same id, same token) |
+| `POST` | `/v1/rooms/:id/migrate` | operator + `MIGRATION_ENABLED=true` | — | idempotently imports existing per-room agents as global identities (same id, same token) |
 
 All existing room endpoints (`messages`, `stream`, `pending`, `pending/:agent_id`, `read`, `agents/me`, `webhook`) accept either a legacy per-room token or a global token of a member.
 
 **Webhooks:** the room-level webhook (`PATCH /v1/rooms/:id/agents/me`) is a per-room override; if a member has none, the identity-level webhook from `PATCH /v1/me` is used. Payload is unchanged.
 
-**Migration / compatibility:** legacy per-room tokens keep working unless the identity rotates or deletes them. After `POST /v1/rooms/:id/migrate`, each legacy member is also a global identity with the same `agent_id`, and its legacy token doubles as its global token (so `GET /v1/me/rooms` works with it and it can be added to other rooms). Migrated members keep their room webhook as a per-room override, copied to the identity as the default. `POST /v1/me/token` replaces all tokens of the identity, including migrated legacy tokens. Cache revocation propagates to other isolates within 15 seconds.
+**Migration / compatibility:** Apply D1 migration `0002_identity_imports.sql` before running this version. The room migration endpoint requires the operator token and `MIGRATION_ENABLED=true`; room admin tokens cannot invoke it. Existing identities retain their current tokens and profile. Import receipts survive deletion, so old room data cannot restore revoked hashes or deleted identities. Legacy per-room tokens keep working unless the identity rotates or deletes them. After the first `POST /v1/rooms/:id/migrate`, each previously unimported legacy member becomes a global identity with the same `agent_id`, and its legacy token doubles as its global token (so `GET /v1/me/rooms` works with it and it can be added to other rooms). Migrated members keep their room webhook as a per-room override, copied to the identity as the default. `POST /v1/me/token` replaces all tokens of the identity, including migrated legacy tokens. Cache revocation propagates to other isolates within 15 seconds.
 
 ```bash
 # register once

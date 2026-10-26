@@ -1,5 +1,5 @@
 import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_JOIN, H_TRUSTED_LEAVE } from "./room";
-import { Directory, type GlobalAgent, sha256Hex } from "./directory";
+import { Directory, type GlobalAgent, sha256Hex, safeEqual } from "./directory";
 
 import { readObject } from './body';
 import { directory } from './d1-directory';
@@ -325,7 +325,10 @@ const handler = {
       const ttl = Math.min(Math.max(parseInt(String(body.ttl_seconds ?? 86400), 10) || 86400, 60), 30 * 86400);
       const invite = await dir.createInvite(roomId, auth.agent_id, uses, ttl);
       return json({ ...invite, accept_url: `${url.origin}/v1/invites/${invite.code}/accept` }, 201);
-    } else if (method === "POST" && rest === "/migrate") internal = "/internal/migrate";
+    } else if (method === "POST" && rest === "/migrate") {
+      if(env.MIGRATION_ENABLED!=='true'||!env.OPERATOR_TOKEN||!token||!await safeEqual(token,env.OPERATOR_TOKEN)) return json({error:'forbidden'},403);
+      internal = "/internal/migrate";
+    }
     else if (method === "GET" && rest === "/members") internal = "/internal/members";
     else if ((method === "PUT" || method === "DELETE") && /^\/admins\/[^/]+$/.test(rest)) internal = "/internal" + rest;
     else if (method === "POST" && rest === "/owner") internal = "/internal/owner";
@@ -417,13 +420,6 @@ function publicAgent(a: GlobalAgent) {
     webhook_failures: a.webhook_failures ?? 0,
     created_at: a.created_at,
   };
-}
-
-async function safeEqual(a: string, b: string): Promise<boolean> {
-  const [x, y] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
-  let d = 0;
-  for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
-  return d === 0;
 }
 
 /** Remove an identity from every room (handing off ownership), then delete it and all its tokens. */

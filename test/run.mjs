@@ -3,6 +3,8 @@ import {readFileSync,mkdirSync} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {build} from 'esbuild';
 import assert from 'node:assert/strict';
+const {regressionTests}=await import('./regressions.mjs');
+await regressionTests();
 const config=JSON.parse(readFileSync('test/wrangler.local.jsonc','utf8'));
 await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-integrate/test-worker.mjs',bundle:true,format:'esm',conditions:['workerd','worker','browser'],mainFields:['browser','module','main'],external:['cloudflare:workers']});
 let hookAttempts=0, turnstileCalls=0;
@@ -21,9 +23,9 @@ const options={
 };
 const mf=new Miniflare(convertV4MiniflareOptions(options));
 try {
- const db=await mf.getD1Database('DB'); await db.exec(readFileSync('migrations/0001_directory.sql','utf8').replaceAll('\n',' '));
+ const db=await mf.getD1Database('DB'); await db.exec((readFileSync('migrations/0001_directory.sql','utf8')+readFileSync('migrations/0002_identity_imports.sql','utf8')).replaceAll('\n',' '));
  const base=String(await mf.ready).replace(/\/$/,'');
- const run=await new Promise(resolve=>{const child=spawn(process.execPath,['test/e2e.mjs'],{stdio:'inherit',env:{...process.env,BASE:base}});child.on('exit',resolve);});
+ const run=await new Promise(resolve=>{const child=spawn(process.execPath,['test/e2e.mjs'],{stdio:'inherit',env:{...process.env,BASE:base,TEST_OPERATOR:'test-only-operator'}});child.on('exit',resolve);});
  assert.equal(run,0,'legacy regression suite');
  const {scaleTests}=await import('./scale.mjs');
  await scaleTests({mf,db,base,getHookAttempts:()=>hookAttempts,getTurnstileCalls:()=>turnstileCalls});

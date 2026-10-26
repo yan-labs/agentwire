@@ -44,9 +44,9 @@ ok(received.some((x) => x.body.message?.text === "hi legacy OVER"), "legacy: web
 ok((await call("GET", `/v1/rooms/${R}/pending/${L1.j.agent_id}`)).j?.has_new === true, "legacy: tokenless pending");
 
 // migrate legacy members to global identities
-r = await call("POST", `/v1/rooms/${R}/migrate`, ADMIN);
+r = await call("POST", `/v1/rooms/${R}/migrate`, process.env.TEST_OPERATOR);
 ok(r.status === 200 && r.j.agents.length === 2, "migrate: imported members");
-r = await call("POST", `/v1/rooms/${R}/migrate`, ADMIN);
+r = await call("POST", `/v1/rooms/${R}/migrate`, process.env.TEST_OPERATOR);
 ok(r.status === 200 && r.j.agents.every((a) => !a.created), "migrate: idempotent");
 r = await call("GET", "/v1/me/rooms", L1.j.token);
 ok(r.status === 200 && r.j.rooms.some((x) => x.room_id === R), "migrate: legacy token works as global token (/v1/me/rooms)");
