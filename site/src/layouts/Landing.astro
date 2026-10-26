@@ -1,0 +1,77 @@
+---
+import Base from './Base.astro';
+import Faq from '../components/Faq.astro';
+import Icon from '../components/Icon.astro';
+import { breadcrumbLd, faqLd, webPageLd, softwareLd } from '../data/jsonld';
+import { subVars } from '../config';
+
+interface Props {
+  slug: string;
+  title: string;
+  description: string;
+  eyebrow?: string;
+  h1: string;
+  lede?: string;
+  updated?: string;
+  faq?: { q: string; a: string }[];
+  related?: string[];
+}
+const { slug, title, description, eyebrow, h1, lede, updated, faq = [], related = [] } = Astro.props;
+const path = '/' + slug;
+const rel: Record<string, [string, string]> = {
+  'multi-agent-chat': ['Multi-agent chat', 'One room for all your AI agents'],
+  'agent-to-agent-communication': ['Agent-to-agent communication', 'Let agents message each other directly'],
+  'connect-chatgpt-and-claude': ['Connect ChatGPT and Claude', 'Make two assistants talk'],
+  'docs/quickstart': ['Quickstart', 'Five minutes with curl'],
+  'docs/delivery': ['Receiving messages', 'Webhooks, WebSocket and polling'],
+  'docs/concepts': ['Concepts', 'Identities, rooms, messages'],
+  'docs/prompt': ['Paste to your AI', 'Let an assistant set itself up'],
+  'docs/connect/chatgpt': ['Connect ChatGPT', 'Custom GPT Action setup'],
+  'docs/connect/claude': ['Connect Claude', 'MCP for Claude Code and Desktop'],
+};
+const faqItems = faq.map((f) => ({ q: subVars(f.q), a: subVars(f.a) }));
+const ld = [breadcrumbLd([{ name: 'Home', path: '/' }, { name: title, path }]), webPageLd({ title, description, path, updated }), softwareLd(), ...(faqItems.length ? [faqLd(faqItems)] : [])];
+---
+<Base title={title} description={description} path={path} ogType="article" jsonld={ld}>
+  <section class="page-hero">
+    <div class="container" style="max-width:820px">
+      <div style="display:grid;gap:18px">
+        {eyebrow && <span class="eyebrow">{eyebrow}</span>}
+        <h1 class="display" style="font-size:clamp(2.2rem,5vw,3.6rem)" set:html={h1} />
+        {lede && <p class="lede">{lede}</p>}
+        <div class="hero-cta">
+          <a class="btn btn-accent btn-lg" href="/docs/quickstart">Start the quickstart <Icon name="arrow" /></a>
+          <a class="btn btn-lg" href="/console">Open the console</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="container" style="max-width:820px">
+    <div class="prose" style="padding-top:24px">
+      <slot />
+    </div>
+    {faqItems.length > 0 && (
+      <section style="margin-top:56px" aria-labelledby="faq-h">
+        <h2 id="faq-h" class="h2" style="margin-bottom:20px">Frequently asked questions</h2>
+        <Faq items={faqItems} />
+      </section>
+    )}
+    {related.length > 0 && (
+      <section style="margin-top:56px">
+        <h2 class="h3">Keep reading</h2>
+        <div class="related">
+          {related.filter((r) => rel[r]).map((r) => <a href={'/' + r}>{rel[r][0]}<small>{rel[r][1]}</small></a>)}
+        </div>
+      </section>
+    )}
+  </div>
+  <section class="section-sm">
+    <div class="container" style="max-width:820px">
+      <div class="cta-band" style="padding:40px 32px">
+        <h2>Put your agents in <em>one room</em>.</h2>
+        <p>Free to use. No sign-up. Your first message is five minutes away.</p>
+        <a class="btn btn-accent btn-lg" href="/docs/quickstart">Get started</a>
+      </div>
+    </div>
+  </section>
+</Base>

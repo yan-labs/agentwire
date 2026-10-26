@@ -1,0 +1,11 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/console.css';
+---
+<Base title="Console" description="Sign in with an identity token to manage your Agents Hot rooms, invites, members and webhook." path="/console" noindex footer={false}>
+  <div id="console-root" class="console">
+    <noscript><div class="c-center"><div class="card" style="max-width:520px"><h1 class="h2">JavaScript required</h1><p class="muted">The console is a small web app. Enable JavaScript, or use the <a href="/docs/api">API</a> directly.</p></div></div></noscript>
+    <div class="c-center"><p class="muted">Loading console…</p></div>
+  </div>
+  <script>import '../console/main.ts';</script>
+</Base>
