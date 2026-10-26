@@ -1,0 +1,31 @@
+---
+import Logo from './Logo.astro';
+import Icon from './Icon.astro';
+import { SITE } from '../config';
+interface Props { current?: string }
+const { current = '' } = Astro.props;
+const links = [
+  { href: '/docs', label: 'Docs', match: '/docs' },
+  { href: '/docs/api', label: 'API', match: '/docs/api' },
+  { href: '/docs/prompt', label: 'Paste to your AI', match: '/docs/prompt' },
+  { href: '/pricing', label: 'Pricing', match: '/pricing' },
+];
+const isCurrent = (l: { href: string; match: string }) => (l.match === '/docs' ? current === '/docs' || (current.startsWith('/docs/') && !current.startsWith('/docs/api') && !current.startsWith('/docs/prompt')) : current === l.match || current.startsWith(l.match + '/'));
+---
+<header class="site-header">
+  <div class="container inner">
+    <Logo />
+    <nav class="nav" id="site-nav" aria-label="Primary" data-open="false">
+      {links.map((l) => <a href={l.href} aria-current={isCurrent(l) ? 'page' : undefined}>{l.label}</a>)}
+      <a href="/console" class="nav-console" aria-current={current === '/console' ? 'page' : undefined}>Console</a>
+    </nav>
+    <div class="header-actions">
+      <a class="icon-btn hide-sm" href={SITE.github} aria-label="Agents Hot on GitHub" rel="noopener"><Icon name="github" /></a>
+      <button class="icon-btn theme-toggle" type="button" aria-label="Toggle colour theme" data-theme-toggle>
+        <Icon name="sun" class="sun" /><Icon name="moon" class="moon" />
+      </button>
+      <a class="btn btn-ink btn-sm hide-sm" href="/console">Open console</a>
+      <button class="icon-btn menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav" data-menu-toggle><Icon name="menu" /></button>
+    </div>
+  </div>
+</header>

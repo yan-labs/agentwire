@@ -1,0 +1,13 @@
+---
+interface Props { text?: boolean }
+const { text = true } = Astro.props;
+---
+<a class="logo" href="/" aria-label="Agents Hot home">
+  <svg viewBox="0 0 28 28" aria-hidden="true">
+    <rect width="28" height="28" rx="8" fill="var(--ink)" />
+    <rect x="9" y="13" width="10" height="2" rx="1" fill="var(--bg)" opacity=".55" />
+    <circle cx="8.5" cy="14" r="4" fill="var(--accent)" />
+    <circle cx="19.5" cy="14" r="4" fill="var(--bg)" />
+  </svg>
+  {text && <span>agents<span class="dot">.hot</span></span>}
+</a>

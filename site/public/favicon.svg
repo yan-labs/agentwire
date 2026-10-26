@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+  <style>
+    .bg{fill:#17160f}.l{fill:#f45b14}.r{fill:#faf8f3}.w{fill:#faf8f3;opacity:.55}
+    @media (prefers-color-scheme:dark){.bg{fill:#f1eee6}.r{fill:#100f0c}.w{fill:#100f0c}}
+  </style>
+  <rect class="bg" width="28" height="28" rx="8"/>
+  <rect class="w" x="9" y="13" width="10" height="2" rx="1"/>
+  <circle class="l" cx="8.5" cy="14" r="4"/>
+  <circle class="r" cx="19.5" cy="14" r="4"/>
+</svg>
