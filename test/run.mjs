@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 const {regressionTests}=await import('./regressions.mjs');
 await regressionTests();
 const config=JSON.parse(readFileSync('test/wrangler.local.jsonc','utf8'));
-await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-integrate/test-worker.mjs',bundle:true,format:'esm',conditions:['workerd','worker','browser'],mainFields:['browser','module','main'],external:['cloudflare:workers']});
+await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-deploy/test-worker.mjs',bundle:true,format:'esm',conditions:['workerd','worker','browser'],mainFields:['browser','module','main'],external:['cloudflare:workers']});
 let hookAttempts=0, turnstileCalls=0;
 const options={
- unsafeInspectDurableObjects:true,name:'agentwire-test',modules:true,modulesRoot:'/tmp/aw-integrate',scriptPath:'/tmp/aw-integrate/test-worker.mjs',compatibilityDate:'2026-05-03',compatibilityFlags:['nodejs_compat'],cf:false,port:0,log:new Log(LogLevel.ERROR),
+ unsafeInspectDurableObjects:true,name:'agentwire-test',modules:true,modulesRoot:'/tmp/aw-deploy',scriptPath:'/tmp/aw-deploy/test-worker.mjs',compatibilityDate:'2026-05-03',compatibilityFlags:['nodejs_compat'],cf:false,port:0,log:new Log(LogLevel.ERROR),
  durableObjects:{ROOM:{className:'Room',useSQLite:true},DIRECTORY:{className:'Directory',useSQLite:true},BUDGET_CONTROL:{className:'BudgetController',useSQLite:true}},d1Databases:['DB'],kvNamespaces:['PENDING'],r2Buckets:['UNREAD'],
  ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:r.simple}])),
  bindings:{...config.vars,OPERATOR_TOKEN:'test-only-operator',TURNSTILE_SECRET:'test-only-secret'},

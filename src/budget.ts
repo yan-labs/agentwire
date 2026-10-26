@@ -89,8 +89,9 @@ export function parseUsage(account:Record<string,Rows>):Record<string,number> {
  usage.r2_class_a=0;usage.r2_class_b=0;total('r2','requests');
  for(const row of account.r2) {
   const action=row.dimensions?.actionType||'';
-  if(['GetObject','HeadObject','HeadBucket'].includes(action)) usage.r2_class_b+=row.sum!.requests;
-  else if(['ListBuckets','ListObjects','PutObject','CopyObject','CreateMultipartUpload','ListMultipartUploads','UploadPart','UploadPartCopy','CompleteMultipartUpload','ListParts','PutBucket'].includes(action)) usage.r2_class_a+=row.sum!.requests;
+  if(['GetObject','HeadObject','HeadBucket','UsageSummary','GetBucketEncryption','GetBucketLocation','GetBucketCors','GetBucketLifecycleConfiguration'].includes(action)) usage.r2_class_b+=row.sum!.requests;
+  // Notification configuration reads are conservatively charged as Class A in this guard.
+  else if(['ListBuckets','ListObjects','PutObject','CopyObject','CreateMultipartUpload','ListMultipartUploads','UploadPart','UploadPartCopy','CompleteMultipartUpload','ListParts','PutBucket','LifecycleStorageTierTransition','PutBucketEncryption','PutBucketCors','PutBucketLifecycleConfiguration','GetBucketNotificationConfiguration'].includes(action)) usage.r2_class_a+=row.sum!.requests;
   else if(!['DeleteObject','DeleteObjects','AbortMultipartUpload','DeleteBucket'].includes(action)) throw Error('unknown R2 action');
  }
  return usage;
@@ -102,12 +103,13 @@ async function storeBudget(env:Env,state:BudgetState) {
 }
 export async function setExternalGate(env:Env,blocked:boolean,fetcher:typeof fetch=fetch) {
  if(!env.CF_GUARD_TOKEN||!env.CF_ZONE_ID||!env.WAF_RULESET_ID||!env.WAF_RULE_ID) throw Error('external gate unconfigured');
- const path=`zones/${env.CF_ZONE_ID}/rulesets/${env.WAF_RULESET_ID}/rules/${env.WAF_RULE_ID}`;
+ const path=`zones/${env.CF_ZONE_ID}/rulesets/${env.WAF_RULESET_ID}`;
  const api=async(method:string,body?:unknown)=>{
-  const res=await fetcher(`https://api.cloudflare.com/client/v4/${path}`,{method,headers:{authorization:`Bearer ${env.CF_GUARD_TOKEN}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(5000)});
+  const res=await fetcher(`https://api.cloudflare.com/client/v4/${path}${method==='PATCH'?'/rules/'+env.WAF_RULE_ID:''}`,{method,headers:{authorization:`Bearer ${env.CF_GUARD_TOKEN}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(5000)});
   if(!res.ok) throw Error('external gate HTTP failure');
-  const data=await res.json() as {success:boolean;result?:{enabled:boolean}};
-  if(!data.success||typeof data.result?.enabled!=='boolean') throw Error('external gate invalid response');return data.result;
+  const data=await res.json() as {success:boolean;result?:{rules?:{id:string;enabled:boolean}[]}};
+  const rule=data.result?.rules?.find(r=>r.id===env.WAF_RULE_ID);
+  if(!data.success||typeof rule?.enabled!=='boolean') throw Error('external gate invalid response');return rule;
  };
  if((await api('GET')).enabled!==blocked) {
   await api('PATCH',{action:'block',expression:env.WAF_API_EXPRESSION,enabled:blocked,description:'Agents Hot emergency gate'});

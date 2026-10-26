@@ -6,7 +6,7 @@ const PROTECTED='room_cdc26cdd5dab08d7f63427a8';
 export async function integrateTests(options) {
  let gate=false,gateWrites=0,protectedHooks=0;
  const mf=new Miniflare(convertV4MiniflareOptions({...options,name:'integrate-test',bindings:{...options.bindings,BUDGET_ENABLED:'true',BILLING_ALERT_SECRET:'fake-billing',CF_GUARD_TOKEN:'fake-guard',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression'},outboundService:async req=>{
-  if(new URL(req.url).hostname==='api.cloudflare.com') {if(req.method==='PATCH') {gate=(await req.json()).enabled;gateWrites++;}return MFResponse.json({success:true,result:{enabled:gate}});}
+  if(new URL(req.url).hostname==='api.cloudflare.com') {if(req.method==='PATCH') {gate=(await req.json()).enabled;gateWrites++;}return MFResponse.json({success:true,result:{rules:[{id:'fake-rule',enabled:gate}]}});}
   if(new URL(req.url).hostname==='hook.invalid'){protectedHooks++;return new MFResponse(null,{status:200});}
   return options.outboundService(req);
  }}));
@@ -57,7 +57,7 @@ export async function integrateTests(options) {
   const stopped=await call('POST','/internal/billing-alert',null,{},host,{'cf-webhook-auth':'fake-billing'});
   ok(stopped.status===200&&gate&&gateWrites===1,'authenticated billing alert activates WAF with verified readback');
   // Each isolated request gets the new budget state; avoid the previous warm 60s cache in this fixture.
-  await mf.setOptions(convertV4MiniflareOptions({...options,name:'integrate-test',bindings:{...options.bindings,BUDGET_ENABLED:'true',BILLING_ALERT_SECRET:'fake-billing',CF_GUARD_TOKEN:'fake-guard',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression'},outboundService:async req=>{if(new URL(req.url).hostname==='api.cloudflare.com'){if(req.method==='PATCH')gate=(await req.json()).enabled;return MFResponse.json({success:true,result:{enabled:gate}});}if(new URL(req.url).hostname==='hook.invalid'){protectedHooks++;return new MFResponse(null,{status:200});}return options.outboundService(req);}}));
+  await mf.setOptions(convertV4MiniflareOptions({...options,name:'integrate-test',bindings:{...options.bindings,BUDGET_ENABLED:'true',BILLING_ALERT_SECRET:'fake-billing',CF_GUARD_TOKEN:'fake-guard',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression'},outboundService:async req=>{if(new URL(req.url).hostname==='api.cloudflare.com'){if(req.method==='PATCH')gate=(await req.json()).enabled;return MFResponse.json({success:true,result:{rules:[{id:'fake-rule',enabled:gate}]}});}if(new URL(req.url).hostname==='hook.invalid'){protectedHooks++;return new MFResponse(null,{status:200});}return options.outboundService(req);}}));
   for(const member of [a,b,c]) ok((await call('GET','/v1/me',member.token)).status===200,'protected member identity survives stop');
   ok((await call('GET','/v1/me',outsider.token)).status===503,'unprotected identity blocked on workers.dev');
   ok((await call('PATCH','/v1/me',b.token,{webhook_url:'https://hook.invalid/continue'})).status===200,'protected webhook configuration survives stop');

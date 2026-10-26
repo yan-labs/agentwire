@@ -148,11 +148,11 @@ async function migrationTests({mf,db,call,ns}) {
  const agents=['来财','Muse','dot'].map((name,i)=>({id:`agent_protected_${i}`,name,token_hash:hash(`fake-migration-${i}`),webhook_url:i===0?'https://hook.invalid/retained':null,webhook_headers:i===0?JSON.stringify({'x-test':'fake-header'}):null,created_at:now,last_read:null,role:'member'}));
  const snapshot={directory:{agents:[],tokens:[],memberships:[],invites:[{hash:hash('fake-invite'),room_id:PROTECTED,created_by:agents[0].id,uses_left:3,expires_at:'2099-01-01',created_at:now}]},rooms:[{meta:{room_id:PROTECTED,created_at:now,owner_id:agents[0].id,admin_token_hash:hash('fake-admin')},agents}]};
  const p=plan(snapshot);ok(p.summary.protected_room&&p.summary.counts.tokens===3,'legacy fixture protects three members and hashes');
- writeFileSync('/tmp/aw-integrate/legacy-fixture.json',JSON.stringify(snapshot),{mode:0o600});
- const dry=spawnSync(process.execPath,['scripts/migrate.mjs','--snapshot','/tmp/aw-integrate/legacy-fixture.json'],{encoding:'utf8'});
+ writeFileSync('/tmp/aw-deploy/legacy-fixture.json',JSON.stringify(snapshot),{mode:0o600});
+ const dry=spawnSync(process.execPath,['scripts/migrate.mjs','--snapshot','/tmp/aw-deploy/legacy-fixture.json'],{encoding:'utf8'});
  ok(dry.status===0&&JSON.parse(dry.stdout).mode==='dry-run','migration CLI dry-run reconciliation');
- const cli=spawnSync(process.execPath,['scripts/migrate.mjs','--snapshot','/tmp/aw-integrate/legacy-fixture.json','--sql','/tmp/aw-integrate/legacy-fixture.sql'],{encoding:'utf8'});
- ok(cli.status===0&&(statSync('/tmp/aw-integrate/legacy-fixture.sql').mode&0o777)===0o600,'migration SQL protected file permissions');
+ const cli=spawnSync(process.execPath,['scripts/migrate.mjs','--snapshot','/tmp/aw-deploy/legacy-fixture.json','--sql','/tmp/aw-deploy/legacy-fixture.sql'],{encoding:'utf8'});
+ ok(cli.status===0&&(statSync('/tmp/aw-deploy/legacy-fixture.sql').mode&0o777)===0o600,'migration SQL protected file permissions');
  for(let i=0;i<2;i++) await db.exec(p.sql.replaceAll('\n',' '));
  for(const a of agents){const result=await db.prepare('SELECT hash FROM tokens WHERE agent_id=?').bind(a.id).first();ok(result.hash===a.token_hash,'migration preserves exact token hash');}
  ok((await db.prepare('SELECT COUNT(*) AS n FROM agents WHERE id LIKE ?').bind('agent_protected_%').first()).n===3,'migration idempotent no duplicate agents');
@@ -185,8 +185,8 @@ async function migrationTests({mf,db,call,ns}) {
  ok(!await db.prepare('SELECT 1 FROM tokens WHERE hash=?').bind(agents[0].token_hash).first(),'reimport cannot resurrect a rotated legacy token');
 }
 async function budgetTests() {
- await build({entryPoints:['src/budget.ts'],outfile:'/tmp/aw-integrate/budget-test.mjs',bundle:true,format:'esm',platform:'node'});
- const {INCLUDED,USAGE_QUERY,parseUsage,billingWindow,budgetLevel,runBudgetGuard,budgetError,billingControl}=await import('/tmp/aw-integrate/budget-test.mjs');
+ await build({entryPoints:['src/budget.ts'],outfile:'/tmp/aw-deploy/budget-test.mjs',bundle:true,format:'esm',platform:'node'});
+ const {INCLUDED,USAGE_QUERY,parseUsage,billingWindow,budgetLevel,runBudgetGuard,budgetError,billingControl}=await import('/tmp/aw-deploy/budget-test.mjs');
  ok(new Date(billingWindow({BILLING_CYCLE_DAY:'15'},new Date('2026-10-10')).start).toISOString().startsWith('2026-09-15'),'billing window follows account billing day instead of calendar month');
  const now=new Date('2026-10-31T23:59:00Z'),zero=Object.fromEntries(Object.keys(INCLUDED).map(k=>[k,0]));
  for(const level of [0,1,2,3,4]) {const usage={...zero,workers_requests:INCLUDED.workers_requests*[0,0.5,0.7,0.8,0.9][level]};ok(budgetLevel(usage,{},now).level===level,`budget threshold L${level}`);}
@@ -197,6 +197,9 @@ async function budgetTests() {
  const account={workers:[{sum:{requests:100,cpuTimeUs:2500}}],invocations:[{sum:{requests:10}}],periodic:[{sum:{duration:1,rowsRead:200,rowsWritten:30}}],doStorage:[{max:{storedBytes:10}},{max:{storedBytes:20}}],d1:[{sum:{rowsRead:50,rowsWritten:2}}],d1Storage:[{max:{databaseSizeBytes:80}}],kv:[{sum:{requests:3},dimensions:{actionType:'read'}}],kvStorage:[{max:{byteCount:90}}],r2:[{sum:{requests:5},dimensions:{actionType:'GetObject'}},{sum:{requests:2},dimensions:{actionType:'PutObject'}}],r2Storage:[{max:{payloadSize:100,metadataSize:1}}]};
  const parsed=parseUsage(account);
  ok(Object.keys(parsed).length===Object.keys(INCLUDED).length&&parsed.workers_cpu_ms===2.5&&parsed.do_storage_bytes===30&&parsed.r2_class_a===2&&parsed.r2_class_b===5,'all 18 dimensions normalized with units and per-resource storage summed');
+ const management=parseUsage({...account,r2:[{sum:{requests:2},dimensions:{actionType:'GetBucketLifecycleConfiguration'}},{sum:{requests:3},dimensions:{actionType:'PutBucketLifecycleConfiguration'}},{sum:{requests:4},dimensions:{actionType:'GetBucketNotificationConfiguration'}}]});
+ ok(management.r2_class_b===2&&management.r2_class_a===7,'real account R2 management operations are conservatively metered');
+ assert.throws(()=>parseUsage({...account,r2:[{sum:{requests:1},dimensions:{actionType:'unknown'}}]}));ok(true,'unknown R2 operation still fails closed');
  assert.throws(()=>parseUsage({...account,periodic:undefined}));ok(true,'missing dataset rejected');
  assert.throws(()=>parseUsage({...account,kv:[{sum:{requests:1},dimensions:{actionType:'unknown'}}]}));ok(true,'unknown metered operation rejected');
  assert.throws(()=>parseUsage({...account,workers:Array(10000).fill(account.workers[0])}));ok(true,'truncated aggregate rejected');
@@ -206,8 +209,9 @@ async function budgetTests() {
  const mock=async(url,init)=>{
    const body=init.body?JSON.parse(init.body):{};calls.push({url,body,method:init.method});
    if(url.endsWith('/graphql')) return Response.json(fail?{errors:[{}]}:{data:{viewer:{accounts:[account]}}});
-   if(init.method==='PATCH') remoteGate=body.enabled;
-   return Response.json({success:true,result:{enabled:remoteGate}});
+   if(init.method==='PATCH') {assert(url.endsWith('/rules/fake-rule'));remoteGate=body.enabled;}
+   else assert(url.endsWith('/rulesets/fake-ruleset'),'GET reads ruleset, not unsupported single-rule endpoint');
+   return Response.json({success:true,result:{rules:[{id:'unrelated',enabled:true},{id:'fake-rule',enabled:remoteGate}]}});
  };
  await runBudgetGuard(env,mock,now);
  ok(store.get('budget').level===0,'default query runs without USAGE_QUERY configuration');

@@ -80,14 +80,14 @@
     {
       "binding": "DB",
       "database_name": "agentwire-directory",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "74066439-a6d6-44f2-a3ac-8f1fc972fdfd",
       "migrations_dir": "migrations"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "PENDING",
-      "id": "00000000000000000000000000000000"
+      "id": "a626151091ac4531b580dcc8d9ad864e"
     }
   ],
   "ratelimits": [
@@ -137,17 +137,19 @@
     "WEBHOOK_MAX_FAILURES": "5",
     "WEBHOOK_RETRY_SECONDS": "30",
     "MIGRATION_ENABLED": "false",
-    "TURNSTILE_SITE_KEY": "",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFnXjhulFDHF2CBR",
     "MAX_IDENTITIES": "3000",
     "MAX_GLOBAL_ROOMS": "500",
     "BUDGET_ENABLED": "true",
-    "BUDGET_THRESHOLDS": "0.45,0.65,0.75,0.85",
+    "BUDGET_THRESHOLDS": "0.80,0.85,0.90,0.95",
     "CF_ACCOUNT_ID": "f796e83dc0009a24dadf3f5016b8a1ff",
-    "CF_ZONE_ID": "",
-    "WAF_RULESET_ID": "",
-    "WAF_RULE_ID": "",
+    "CF_ZONE_ID": "ed0e1bedf6cb69fd4190fe8ff26fa739",
+    "WAF_RULESET_ID": "2d00ebee93904df495cc59e117599361",
+    "WAF_RULE_ID": "d3445f9482194c708e830bc70c014ee3",
     "WAF_API_EXPRESSION": "((http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")) and not starts_with(http.request.uri.path, \"/internal/billing-\")",
-    "USAGE_FAILURE_THRESHOLD": "3"
+    "USAGE_FAILURE_THRESHOLD": "3",
+    "BUDGET_LIMITS": "{\"workers_cpu_ms\":40000000}",
+    "BILLING_CYCLE_DAY": "9"
   },
   "preview_urls": false,
   "r2_buckets": [

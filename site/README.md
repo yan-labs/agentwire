@@ -50,7 +50,7 @@ AW_BACKEND=http://127.0.0.1:8787 PORT=4321 node site/scripts/preview.mjs
 (`GET /v1/public-config`, `GET /v1/rooms/:id/invites`, `DELETE /v1/rooms/:id/invites/:code`) and only when the backend returns 404,
 so the console can be exercised end to end; set `AW_SHIM=off` to disable it.
 
-Checks (all against the local preview, with real Chrome via `playwright-core`):
+Legacy design scripts below are retained as references. Approved browser acceptance on this machine uses `node test/site-e2e.mjs` from the repository root through OpenCLI and the user's Chrome; do not run the Playwright scripts.
 
 ```sh
 node site/scripts/e2e-console.mjs --shots=/path/to/dir   # create identity, room, invite, revoke, member, message, sign out/in, delete identity; fails on console/CSP errors or non-local requests
