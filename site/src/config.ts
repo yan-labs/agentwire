@@ -62,3 +62,6 @@ export const VARS: Record<string, string | number> = {
   inviteMaxUses: LIMITS.inviteMaxUses,
   inviteTtlMax: LIMITS.inviteMaxTtlDays,
 };
+
+/** Substitute {{key}} placeholders in a string (used for frontmatter, which remark does not touch). */
+export const subVars = (s: string) => s.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (m, k) => (k in VARS ? String(VARS[k]) : m));

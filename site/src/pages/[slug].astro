@@ -1,0 +1,23 @@
+---
+import { getCollection, render } from 'astro:content';
+import Landing from '../layouts/Landing.astro';
+import Legal from '../layouts/Legal.astro';
+import { subVars } from '../config';
+
+export async function getStaticPaths() {
+  const pages = await getCollection('pages');
+  return pages.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+---
+{d.kind === 'landing' ? (
+  <Landing slug={entry.id} title={d.title} description={d.description} eyebrow={d.eyebrow} h1={subVars(d.h1 ?? d.title)} lede={d.lede} updated={d.updated} faq={d.faq} related={d.related}>
+    <Content />
+  </Landing>
+) : (
+  <Legal slug={entry.id} title={d.title} description={d.description} h1={d.h1 ?? d.title} lede={d.lede} updated={d.updated}>
+    <Content />
+  </Legal>
+)}
