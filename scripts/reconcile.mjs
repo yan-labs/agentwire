@@ -20,5 +20,5 @@ try {
      matched++;
    }
  }
- console.log(JSON.stringify({ok:true,matched,...p.summary}));
+ console.log(JSON.stringify({ok:true,matched,...p.summary,actual_counts:Object.fromEntries(p.checks.map(({table},i)=>[table,parsed[i].results.length]))}));
 } catch {console.error('Reconciliation failed; no hashes, headers or credentials logged.');process.exitCode=1;}

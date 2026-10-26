@@ -1,4 +1,5 @@
 import {readFileSync,writeFileSync,chmodSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 export const PROTECTED='room_cdc26cdd5dab08d7f63427a8';
 const tables={agents:['id','name','webhook_url','webhook_headers','created_at'],tokens:['hash','agent_id','created_at'],memberships:['agent_id','room_id','joined_at'],invites:['hash','room_id','created_by','uses_left','expires_at','created_at'],rooms:['room_id','created_at']};
@@ -30,15 +31,17 @@ export function plan(snapshot,{requireProtected=true}={}) {
  const protectedOK=!!protectedRoom&&protectedRoom.agents.length===3&&expected.every(n=>protectedRoom.agents.some(a=>a.name===n))&&protectedRoom.agents.every(a=>data.agents.has(a.id)&&[...data.tokens.values()].some(t=>t.agent_id===a.id));
  if(requireProtected&&!protectedOK) throw Error('protected room/member/token reconciliation failed');
  // Conflicting target rows abort instead of overwriting live identities, hashes or webhook settings.
- const sql=['CREATE TABLE IF NOT EXISTS migration_assert (ok INTEGER CHECK(ok=1));','DELETE FROM migration_assert;'];
+ const fingerprint=createHash('sha256').update(JSON.stringify(Object.entries(data).map(([table,rows])=>[table,[...rows.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([,row])=>tables[table].map(k=>row[k]??null))]))).digest('hex');
+ const applied="EXISTS(SELECT 1 FROM migration_runs WHERE id='directory-v1')";
+ const sql=['CREATE TABLE IF NOT EXISTS migration_runs (id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL);','CREATE TABLE IF NOT EXISTS migration_assert (ok INTEGER CHECK(ok=1));','DELETE FROM migration_assert;',`INSERT INTO migration_assert SELECT CASE WHEN NOT ${applied} OR EXISTS(SELECT 1 FROM migration_runs WHERE id='directory-v1' AND fingerprint=${q(fingerprint)}) THEN 1 ELSE 0 END;`];
  for(const [table,cols] of Object.entries(tables)) for(const row of data[table].values()) {
    const key=table==='memberships'?['agent_id','room_id']:[cols[0]];
    const where=key.map(k=>`${k}=${q(row[k])}`).join(' AND ');
    const compare=cols.filter(k=>k!=='created_at'&&k!=='joined_at').map(k=>`${k} IS ${q(row[k])}`).join(' AND ');
-   sql.push(`INSERT INTO migration_assert SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ${table} WHERE ${where}) OR EXISTS(SELECT 1 FROM ${table} WHERE ${where} AND ${compare}) THEN 1 ELSE 0 END;`);
-   sql.push(`INSERT OR IGNORE INTO ${table}(${cols.join(',')}) VALUES(${cols.map(k=>q(row[k])).join(',')});`);
+   sql.push(`INSERT INTO migration_assert SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM ${table} WHERE ${where}) OR EXISTS(SELECT 1 FROM ${table} WHERE ${where} AND ${compare}) THEN 1 ELSE 0 END WHERE NOT ${applied};`);
+   sql.push(`INSERT OR IGNORE INTO ${table}(${cols.join(',')}) SELECT ${cols.map(k=>q(row[k])).join(',')} WHERE NOT ${applied};`);
  }
- sql.push('DROP TABLE migration_assert;');
+ sql.push(`INSERT OR IGNORE INTO migration_runs VALUES('directory-v1',${q(fingerprint)});`,'DROP TABLE migration_assert;');
  const counts=Object.fromEntries(Object.entries(data).map(([k,v])=>[k,v.size]));
  const checks=Object.entries(data).map(([table,rows])=>({table,rows:[...rows.values()]}));
  return {sql:sql.join('\n'),checks,summary:{counts,rooms:rooms.length,protected_room:protectedOK,token_hashes_preserved:true},roomIds:rooms.map(r=>r.meta.room_id)};

@@ -179,6 +179,10 @@ async function migrationTests({mf,db,call,ns}) {
  const exported=await call('POST','/v1/admin/migration/export','test-only-operator',{rooms:[PROTECTED]});
  ok(exported.status===200&&exported.data.directory.agents.some(a=>a.id==='agent_old_directory')&&exported.data.rooms[0].agents.length===3,'operator exports Directory and Room old formats');
  ok((await legacy.exec('SELECT COUNT(*) AS n FROM tokens'))[0].n===1,'export leaves original data intact');
+ await db.prepare('DELETE FROM tokens WHERE agent_id=?').bind(agents[0].id).run();
+ await db.prepare('INSERT INTO tokens VALUES(?,?,?)').bind(hash('fake-rotated-after-migration'),agents[0].id,now).run();
+ await db.exec(p.sql.replaceAll('\n',' '));
+ ok(!await db.prepare('SELECT 1 FROM tokens WHERE hash=?').bind(agents[0].token_hash).first(),'reimport cannot resurrect a rotated legacy token');
 }
 async function budgetTests() {
  await build({entryPoints:['src/budget.ts'],outfile:'/tmp/aw-scale/budget-test.mjs',bundle:true,format:'esm',platform:'node'});
