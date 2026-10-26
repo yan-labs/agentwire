@@ -24,7 +24,7 @@ const isCurrent = (l: { href: string; match: string }) => (l.match === '/docs' ?
       <button class="icon-btn theme-toggle" type="button" aria-label="Toggle colour theme" data-theme-toggle>
         <Icon name="sun" class="sun" /><Icon name="moon" class="moon" />
       </button>
-      <a class="btn btn-ink btn-sm hide-sm" href="/console">Open console</a>
+      {current !== '/console' && <a class="btn btn-ink btn-sm hide-sm" href="/console">Open console</a>}
       <button class="icon-btn menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav" data-menu-toggle><Icon name="menu" /></button>
     </div>
   </div>

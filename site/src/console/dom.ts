@@ -136,13 +136,13 @@ export const shortId = (id: string, head = 10, tail = 4) => (id.length > head + 
 export function fmtTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 export function rel(iso: string): string {
   const d = new Date(iso).getTime();
   if (isNaN(d)) return iso;
   const s = Math.round((d - Date.now()) / 1000);
-  const f = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const f = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
   const a = Math.abs(s);
   if (a < 60) return f.format(s, 'second');
   if (a < 3600) return f.format(Math.round(s / 60), 'minute');

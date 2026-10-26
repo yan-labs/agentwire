@@ -110,3 +110,5 @@ input.secret { background: var(--surface); }
   .c-invite-form .field, .c-invite-form button { width: 100%; }
   .c-invite-form input[type='number'] { width: 100%; }
 }
+
+@media (max-width: 520px) { .chip-id { display: none; } }

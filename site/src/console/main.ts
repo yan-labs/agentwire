@@ -513,7 +513,7 @@ function messagesPanel(id: string, meta: RoomMeta, panel: HTMLElement) {
     try {
       const { messages } = await api.messages(id, 100);
       draw(messages);
-      status.textContent = `${messages.length} message${messages.length === 1 ? '' : 's'} · updated ${new Date().toLocaleTimeString()}`;
+      status.textContent = `${messages.length} message${messages.length === 1 ? '' : 's'} · updated ${new Date().toLocaleTimeString('en-US')}`;
     } catch (e) { clear(feed); feed.append(errBox(e)); status.textContent = ''; }
   }
 
