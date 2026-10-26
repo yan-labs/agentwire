@@ -3,9 +3,11 @@
   "name": "agentwire",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-24",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "account_id": "f796e83dc0009a24dadf3f5016b8a1ff",
-  "workers_dev": true,
+  "workers_dev": false,
   "durable_objects": {
     "bindings": [
       {
@@ -19,10 +21,137 @@
     ]
   },
   "exports": {
-    "Room": { "type": "durable-object", "storage": "sqlite" },
-    "Directory": { "type": "durable-object", "storage": "sqlite" }
+    "Room": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "Directory": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
   },
   "observability": {
-    "enabled": true
+    "enabled": false
+  },
+  "routes": [
+    {
+      "pattern": "api.agents.hot",
+      "custom_domain": true
+    },
+    {
+      "pattern": "agents.hot/v1*",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/mcp",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/openapi.json",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/pending*",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/health",
+      "zone_name": "agents.hot"
+    }
+  ],
+  "assets": {
+    "directory": "./site/dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agentwire-directory",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PENDING",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "REGISTER_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "MESSAGE_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "ROOM_LIMITER",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
+    },
+    {
+      "name": "POLL_LIMITER",
+      "namespace_id": "1004",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "MAX_ROOMS": "50",
+    "MAX_MEMBERS": "20",
+    "MAX_MESSAGES": "50",
+    "MIN_POLL_SECONDS": "60",
+    "PENDING_FLUSH_SECONDS": "60",
+    "SSE_MAX_SECONDS": "60",
+    "IDLE_DAYS": "30",
+    "WARNING_DAYS": "7",
+    "EXEMPT_ROOMS": "room_cdc26cdd5dab08d7f63427a8",
+    "WEBHOOK_MAX_FAILURES": "5",
+    "WEBHOOK_RETRY_SECONDS": "30",
+    "MIGRATION_ENABLED": "false",
+    "TURNSTILE_SITE_KEY": "",
+    "MAX_IDENTITIES": "3000",
+    "MAX_GLOBAL_ROOMS": "500",
+    "BUDGET_ENABLED": "true",
+    "BUDGET_THRESHOLDS": "0.45,0.65,0.75,0.85",
+    "CF_ACCOUNT_ID": "f796e83dc0009a24dadf3f5016b8a1ff",
+    "CF_SCRIPT_NAME": "agentwire",
+    "CF_ZONE_ID": "",
+    "WAF_RULESET_ID": "",
+    "WAF_RULE_ID": "",
+    "ALLOW_WORKERS_DEV": "false",
+    "USAGE_QUERY": "",
+    "WAF_API_EXPRESSION": "(http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")"
+  },
+  "preview_urls": false,
+  "r2_buckets": [
+    {
+      "binding": "UNREAD",
+      "bucket_name": "agents-hot-unread"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/10 * * * *"
+    ]
+  },
+  "limits": {
+    "cpu_ms": 20
   }
 }

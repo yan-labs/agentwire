@@ -7,6 +7,10 @@ export type GlobalAgent = {
   webhook_url: string | null;
   webhook_headers: string | null;
   created_at: string;
+  webhook_paused?: number;
+  paused_rooms?: string;
+  webhook_failures?: number;
+  webhook_version?: string;
 };
 
 export async function sha256Hex(input: string): Promise<string> {
@@ -46,6 +50,12 @@ export class Directory extends DurableObject<Env> {
         );
       `);
     });
+  }
+
+  exportData() {
+    const out: Record<string, { [key: string]: string | number | null }[]> = {};
+    for (const table of ['agents','tokens','memberships','invites']) out[table] = this.ctx.storage.sql.exec<{ [key: string]: string | number | null }>(`SELECT * FROM ${table}`).toArray();
+    return out;
   }
 
   private get sql() { return this.ctx.storage.sql; }

@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agents-hot-site",
+  "compatibility_date": "2026-10-24",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "agents.hot",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agents.hot",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./site/dist",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": false
+  }
+}
