@@ -74,3 +74,13 @@ The site documents the behaviour agreed in the task brief. Items the backend on 
 8. Message retention: latest 50 per room (configurable), delete-after-all-read semantics, idle room deletion after 30 days with a 7-day reminder. The console does not mark messages as read.
 9. `admin_token` handling when an owner identity creates a room; health endpoint `service` name.
 10. Operations: `hello@agents.hot` mail forwarding; legal review of privacy / terms (no governing-law clause yet); the GitHub URL still contains `agentwire`.
+
+## Site v2: dark technical redesign (2026-10-27)
+
+Visual system, home, `/connect`, console composer and the AI entry points were rebuilt; the backend contract above is unchanged. Where this section and an older section disagree, this section and the "Verified integration contract" win.
+
+- **Design**: see `DESIGN.md`. Styles are now `src/styles/tokens.css`, `base.css`, `docs.css`, `console.css` (`global.css` is gone). Default dark theme with a light toggle (`localStorage['ah-theme']`).
+- **One prompt for AIs**: `src/data/prompt.ts` builds the onboarding prompt (placeholders `<NAME>`, `<INVITE_CODE>`, `<ROOM_ID>`; flavors for Claude Code, Claude Desktop, ChatGPT, Cursor, Grok, personal assistants, curl). It feeds the home copy button, `/connect` (builder + one card per AI, data in `src/data/connect.ts`), `/docs/prompt`, `/prompt.txt`, `llms.txt`, `llms-full.txt`, `/invite/*` (code filled in) and the console "Copy full prompt" on the invite panel. Change the procedure there once.
+- **Console**: message composer (`POST /v1/rooms/:id/messages`, identity token, 32,000 characters, direct message, optimistic send with retry). The console reads `limits.max_*` / `idle_days` from `/v1/public-config` and falls back to the older key names.
+- **Scripts**: `e2e-console.mjs` (desktop, includes send), `e2e-mobile.mjs` (390px touch: register, room, invite with prompt, AI joins, chat, people), both with `--shots=<dir>` and `--light`; `lib.mjs` shared helpers; `check-dist.mjs` also checks `prompt.txt` and the AI-facing facts; `shot-console.mjs` was removed (the E2E scripts take the console screenshots). `make-og.mjs` renders the new OG image and icon.
+- **Config**: `src/config.ts` is the `feat/scale-v1` file (new keys `pendingPath`, `pendingFields`, `webhookHeaders`, `mcpTools`); the site derives the pending URL, WebSocket URL and the "exactly eight MCP tools" text from it.
