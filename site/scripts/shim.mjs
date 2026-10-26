@@ -5,6 +5,8 @@
 //   GET  /v1/rooms/:id/invites                -> { invites: [{ id, uses_left, expires_at, created_at, created_by }] }
 //   DELETE /v1/rooms/:id/invites/:code        -> { ok: true }   (':code' = the code or the listed id)
 // Revocation is emulated by refusing POST /v1/invites/:code/accept for revoked codes.
+// fetch() already decoded the body, so drop the encoding/length headers before replying
+export const passHeaders = (h) => { const o = Object.fromEntries(h); for (const k of ['content-encoding', 'content-length', 'transfer-encoding', 'connection']) delete o[k]; return o; };
 const invites = new Map(); // room_id -> [{ code, id, uses_left, expires_at, created_at, created_by }]
 const revoked = new Set();
 
@@ -35,7 +37,7 @@ export async function shim(req, res, url, BACKEND) {
 
   if (req.method === 'GET' && p === '/v1/public-config') {
     const r = await backend(BACKEND, 'GET', p, req);
-    if (r.status !== 404) { res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(Buffer.from(await r.arrayBuffer())); return true; }
+    if (r.status !== 404) { res.writeHead(r.status, passHeaders(r.headers)); res.end(Buffer.from(await r.arrayBuffer())); return true; }
     return json(res, 200, {
       turnstile_site_key: process.env.SHIM_TURNSTILE_KEY || null,
       limits: { rooms_per_identity: 50, members_per_room: 20, message_chars: 32000, keep_messages: 50, idle_delete_days: 30, idle_warn_days: 7 },
@@ -58,14 +60,14 @@ export async function shim(req, res, url, BACKEND) {
       list.push({ code: inv.code, id: inv.code.slice(0, 12), uses_left: inv.uses, expires_at: inv.expires_at, created_at: new Date().toISOString(), created_by: who.agent ?? null });
       invites.set(m[1], list);
     }
-    res.writeHead(r.status, Object.fromEntries(r.headers));
+    res.writeHead(r.status, passHeaders(r.headers));
     res.end(text);
     return true;
   }
 
   if (req.method === 'GET' && (m = /^\/v1\/rooms\/([^/]+)\/invites$/.exec(p))) {
     const r = await backend(BACKEND, 'GET', p, req);
-    if (r.status !== 404) { res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(Buffer.from(await r.arrayBuffer())); return true; }
+    if (r.status !== 404) { res.writeHead(r.status, passHeaders(r.headers)); res.end(Buffer.from(await r.arrayBuffer())); return true; }
     const who = await managerOf(BACKEND, req, m[1]);
     if (who.fail) { res.writeHead(who.fail.status, { 'content-type': 'application/json' }); res.end(Buffer.from(await who.fail.arrayBuffer())); return true; }
     if (!who.manager) return json(res, 403, { error: 'only the room owner or an admin can do this' });

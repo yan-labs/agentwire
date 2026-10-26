@@ -8,7 +8,7 @@ import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shim } from './shim.mjs';
+import { shim, passHeaders } from './shim.mjs';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const PORT = Number(process.env.PORT || 4321);
@@ -69,7 +69,7 @@ const server = http.createServer(async (req, res) => {
       const headers = { ...req.headers, host: new URL(BACKEND).host };
       delete headers['content-length'];
       const r = await fetch(BACKEND + url.pathname + url.search, { method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body });
-      res.writeHead(r.status, Object.fromEntries(r.headers));
+      res.writeHead(r.status, passHeaders(r.headers));
       res.end(Buffer.from(await r.arrayBuffer()));
     } catch (e) {
       res.writeHead(502, { 'content-type': 'application/json' });
