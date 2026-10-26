@@ -7,7 +7,7 @@
     "nodejs_compat"
   ],
   "account_id": "f796e83dc0009a24dadf3f5016b8a1ff",
-  "workers_dev": false,
+  "workers_dev": true,
   "durable_objects": {
     "bindings": [
       {
@@ -17,6 +17,10 @@
       {
         "name": "DIRECTORY",
         "class_name": "Directory"
+      },
+      {
+        "name": "BUDGET_CONTROL",
+        "class_name": "BudgetController"
       }
     ]
   },
@@ -26,6 +30,10 @@
       "storage": "sqlite"
     },
     "Directory": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "BudgetController": {
       "type": "durable-object",
       "storage": "sqlite"
     }
@@ -56,6 +64,10 @@
     },
     {
       "pattern": "agents.hot/health",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/internal/billing-*",
       "zone_name": "agents.hot"
     }
   ],
@@ -131,13 +143,11 @@
     "BUDGET_ENABLED": "true",
     "BUDGET_THRESHOLDS": "0.45,0.65,0.75,0.85",
     "CF_ACCOUNT_ID": "f796e83dc0009a24dadf3f5016b8a1ff",
-    "CF_SCRIPT_NAME": "agentwire",
     "CF_ZONE_ID": "",
     "WAF_RULESET_ID": "",
     "WAF_RULE_ID": "",
-    "ALLOW_WORKERS_DEV": "false",
-    "USAGE_QUERY": "",
-    "WAF_API_EXPRESSION": "(http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")"
+    "WAF_API_EXPRESSION": "((http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")) and not starts_with(http.request.uri.path, \"/internal/billing-\")",
+    "USAGE_FAILURE_THRESHOLD": "3"
   },
   "preview_urls": false,
   "r2_buckets": [

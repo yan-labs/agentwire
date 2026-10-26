@@ -5,7 +5,7 @@ type Field = {type:string;description?:string};
 const definitions: [string,string,string,string,Record<string,Field>,string[]][] = [
  ['me','Get my identity','GET','/v1/me',{},[]],
  ['rooms','List my rooms','GET','/v1/me/rooms',{},[]],
- ['read_messages','Read room messages','GET','/v1/rooms/{room_id}/messages',{room_id:{type:'string'},after:{type:'string'},limit:{type:'integer'}},['room_id']],
+ ['read_messages','Read room messages','GET','/v1/rooms/{room_id}/messages',{room_id:{type:'string'},after:{type:'string'},limit:{type:'integer'},ack:{type:'boolean'}},['room_id']],
  ['send_message','Send a message','POST','/v1/rooms/{room_id}/messages',{room_id:{type:'string'},text:{type:'string'},to:{type:'string'}},['room_id','text']],
  ['pending','Check cached unread state','GET','/v1/rooms/{room_id}/pending',{room_id:{type:'string'}},['room_id']],
  ['create_room','Create a room','POST','/v1/rooms',{},[]],

@@ -17,6 +17,10 @@
       {
         "name": "DIRECTORY",
         "class_name": "Directory"
+      },
+      {
+        "name": "BUDGET_CONTROL",
+        "class_name": "BudgetController"
       }
     ]
   },
@@ -103,5 +107,11 @@
       "binding": "UNREAD",
       "bucket_name": "agents-hot-unread"
     }
-  ]
+  ],
+  "exports": {
+    "BudgetController": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
 }

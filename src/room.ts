@@ -4,26 +4,29 @@ import type { Directory, GlobalAgent } from "./directory";
 import { directory } from "./d1-directory";
 import { readObject } from './body';
 import { getBudget } from './budget';
+import type { BudgetController } from './budget-controller';
 import { limits, numberSetting, metric } from "./settings";
 
 export interface Env {
   ROOM: DurableObjectNamespace<Room>;
+  BUDGET_CONTROL: DurableObjectNamespace<BudgetController>;
   DIRECTORY: DurableObjectNamespace<Directory>;
   DB: D1Database;
   UNREAD: R2Bucket;
   BUDGET_ENABLED?: string;
+  BILLING_CYCLE_DAY?: string;
   BUDGET_LIMITS?: string;
   BUDGET_THRESHOLDS?: string;
   CF_ANALYTICS_TOKEN?: string;
   CF_GUARD_TOKEN?: string;
   CF_ACCOUNT_ID?: string;
   CF_ZONE_ID?: string;
-  CF_SCRIPT_NAME?: string;
   USAGE_QUERY?: string;
+  USAGE_FAILURE_THRESHOLD?: string;
+  BILLING_ALERT_SECRET?: string;
   WAF_RULESET_ID?: string;
   WAF_RULE_ID?: string;
   WAF_API_EXPRESSION?: string;
-  ALLOW_WORKERS_DEV?: string;
   MAX_IDENTITIES?: string;
   MAX_GLOBAL_ROOMS?: string;
 
@@ -585,6 +588,17 @@ export class Room extends DurableObject<Env> {
       if (method === "PATCH" && path === "/internal/agents/me") {
         return await this.updateMe(request);
       }
+      if(method==='POST'&&path==='/internal/messages/batch') {
+        const body=await readObject(request);
+        if(!body||!Array.isArray(body.messages)||body.messages.length<1||body.messages.length>50) return err('messages must contain 1 to 50 items',400);
+        const results=[];
+        for(const message of body.messages) {
+          const res=await this.postMessage(new Request('https://internal/messages',{method:'POST',headers:request.headers,body:JSON.stringify(message)}));
+          results.push({status:res.status,data:await res.json()});
+          if(!res.ok) break;
+        }
+        return json({results,processed:results.length,total:body.messages.length});
+      }
       if (method === "POST" && path === "/internal/messages") {
         return await this.postMessage(request);
       }
@@ -861,6 +875,10 @@ export class Room extends DurableObject<Env> {
     };
 
     this.updateTurn(agent.id, to, text);
+    if((await getBudget(this.env)).level>=3) for(const ws of this.ctx.getWebSockets()) {
+      const a=ws.deserializeAttachment() as {agentId:string|null};
+      if(!this.protectedMember(a.agentId)) ws.close(1008,'Agents Hot budget pause');
+    }
     this.broadcast(message);
 
     this.kvSet('last_activity', created_at); this.kvSet('idle_warned', null);
@@ -886,14 +904,32 @@ export class Room extends DurableObject<Env> {
     const pair=new WebSocketPair(), client=pair[0], server=pair[1];
     if(this.ctx.getWebSockets().length>=20) return err('Agents Hot room connection limit',429);
     this.ctx.acceptWebSocket(server,agent?[agent.id]:['admin']);
-    server.serializeAttachment({agentId:agent?.id??null,admin});
+    server.serializeAttachment({agentId:agent?.id??null,admin,token});
     server.send(JSON.stringify({type:'hello',agent_id:agent?.id??null,state:this.state()}));
     return new Response(null,{status:101,webSocket:client});
   }
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
-    if((await getBudget(this.env)).level>=3) {ws.close(1008,'Agents Hot budget pause');return;}
-    if(message==='ping') ws.send('pong');
-    else ws.close(1008,'push only; send messages over HTTP');
+    const session=ws.deserializeAttachment() as {agentId:string|null;token?:string};
+    if((await getBudget(this.env)).level>=3&&!this.protectedMember(session.agentId)) {ws.close(1008,'Agents Hot budget pause');return;}
+    if(message==='ping') {ws.send('pong');return;}
+    const attachment=ws.deserializeAttachment() as {agentId:string|null;admin:boolean};
+    if(typeof message!=='string'||new TextEncoder().encode(message).byteLength>65536||!attachment.agentId) {ws.close(1008,'invalid command');return;}
+    // Revalidate the identity on every command, including after token rotation/deletion.
+    if(!this.listAgents().some(a=>a.id===attachment.agentId)||!session.token||(await this.dir().resolve(session.token))?.id!==attachment.agentId) {ws.close(1008,'identity ended');return;}
+    try {
+      const frame=JSON.parse(message);
+      const headers={authorization:'Bearer websocket-session',[H_AGENT]:attachment.agentId};
+      let res:Response;
+      if(frame.type==='send') res=await this.postMessage(new Request('https://internal/messages',{method:'POST',headers,body:JSON.stringify(frame)}));
+      else if(frame.type==='read') {
+        const url=new URL('https://internal/messages');
+        if(typeof frame.after==='string') url.searchParams.set('after',frame.after);
+        if(frame.ack===true) url.searchParams.set('ack','true');
+        res=await this.getMessages(new Request(url,{headers}),url);
+      } else if(frame.type==='ack') res=await this.markRead(new Request('https://internal/read',{method:'POST',headers,body:JSON.stringify({id:frame.message_id})}));
+      else {ws.send(JSON.stringify({type:'error',error:'unknown command'}));return;}
+      ws.send(JSON.stringify({type:'result',id:typeof frame.id==='string'?frame.id:null,status:res.status,data:await res.json()}));
+    } catch {ws.send(JSON.stringify({type:'error',error:'invalid command'}));}
   }
   webSocketClose(ws: WebSocket, code: number) { ws.close(code); }
   webSocketError(ws: WebSocket) { ws.close(1011,'socket error'); }
@@ -906,7 +942,13 @@ export class Room extends DurableObject<Env> {
       members[agent.id]={has_new:!!last,count:msgs.length,latest_id:last?.id??null,from:last?.from??null,last_read:agent.last_read,state:this.state()};
       if(!agent.token_hash.startsWith('global:')) tokens[agent.token_hash]=agent.id;
     }
-    return {members,tokens};
+    let protected_members:string[]=[];
+    if(this.exempt()) {
+      const pinned=this.kvGet('protected_members');
+      protected_members=pinned?JSON.parse(pinned):this.listAgents().filter(a=>['来财','Muse','dot'].includes(a.name)).map(a=>a.id);
+      if(!pinned&&protected_members.length===3) this.kvSet('protected_members',JSON.stringify(protected_members));
+    }
+    return {members,tokens,protected_members};
   }
   private async queuePending() {
     const last=Number(this.kvGet('pending_written')||0), delay=numberSetting(this.env.PENDING_FLUSH_SECONDS,60)*1000;
@@ -936,6 +978,9 @@ export class Room extends DurableObject<Env> {
     const id=this.getMeta()?.room_id;
     return (this.env.EXEMPT_ROOMS||'room_cdc26cdd5dab08d7f63427a8').split(',').map(s=>s.trim()).includes(id||'');
   }
+  private protectedMember(id:string|null) {
+    return this.exempt()&&!!id&&(JSON.parse(this.kvGet('protected_members')||'[]') as string[]).includes(id);
+  }
   private activity() {
     return Date.parse(this.kvGet('last_activity')||this.ctx.storage.sql.exec<{created_at:string}>('SELECT created_at FROM messages ORDER BY created_at DESC LIMIT 1').toArray()[0]?.created_at||this.getMeta()!.created_at);
   }
@@ -955,7 +1000,7 @@ export class Room extends DurableObject<Env> {
   }
   async alarm() {
     const meta=this.getMeta(); if(!meta) return;
-    if((await getBudget(this.env)).level>=3) {
+    if(!this.exempt()&&(await getBudget(this.env)).level>=3) {
       await this.ctx.storage.setAlarm(Date.now()+86400000); return;
     }
     await this.dir().cleanupInvites();
@@ -1023,7 +1068,7 @@ export class Room extends DurableObject<Env> {
     try {
       const jobs=this.ctx.storage.sql.exec<{id:string;agent_id:string;payload:string;attempts:number;version:string}>('SELECT * FROM webhook_jobs WHERE due<=? ORDER BY due LIMIT 20',Date.now()).toArray();
       for(const job of jobs) {
-        if((await getBudget(this.env)).level>=3) break;
+        if((await getBudget(this.env)).level>=3&&!this.protectedMember(job.agent_id)) continue;
         const agent=this.listAgents().find(a=>a.id===job.agent_id);
         const hook=agent?await this.hookFor(agent):null;
         if(!hook?.url||hook.paused||hook.version!==job.version) {this.ctx.storage.sql.exec('DELETE FROM webhook_jobs WHERE id=?',job.id);continue;}
@@ -1034,7 +1079,7 @@ export class Room extends DurableObject<Env> {
         const delivery=JSON.stringify({type:payload.type,message,to_agent:payload.to_agent,state:payload.state});
         let success=false, httpStatus=0, errorName='';
         try {
-          const res=await fetch(hook.url,{method:'POST',headers:{...(hook.headers?JSON.parse(hook.headers):{}),'content-type':'application/json','user-agent':'Agents Hot/1','x-agentwire-room':this.getMeta()!.room_id,'x-agentwire-from':message.from},body:delivery,signal:AbortSignal.timeout(10000),redirect:'manual'});
+          const res=await fetch(hook.url,{method:'POST',headers:{...(hook.headers?JSON.parse(hook.headers):{}),'content-type':'application/json','user-agent':'Agents Hot/1','x-agentwire-room':this.getMeta()!.room_id,'x-agentwire-from':message.from,'x-agents-hot-room':this.getMeta()!.room_id,'x-agents-hot-from':message.from},body:delivery,signal:AbortSignal.timeout(10000),redirect:'manual'});
           httpStatus=res.status; success=res.ok; await res.body?.cancel();
         } catch(e) {success=false; errorName=e instanceof Error?e.name:'unknown';}
         const max=numberSetting(this.env.WEBHOOK_MAX_FAILURES,5);
@@ -1089,7 +1134,8 @@ export class Room extends DurableObject<Env> {
           after
         )
         .toArray()[0];
-      if (anchor) {
+      const cursorTime=anchor?.created_at||this.kvGet(`cursor:${after}`);
+      if (cursorTime) {
         rows = this.ctx.storage.sql
           .exec<Row>(
             `SELECT id, room_id, from_agent, to_agent, text, meta, created_at
@@ -1097,9 +1143,9 @@ export class Room extends DurableObject<Env> {
              WHERE created_at > ? OR (created_at = ? AND id > ?)
              ORDER BY created_at ASC, id ASC
              LIMIT ?`,
-            anchor.created_at,
-            anchor.created_at,
-            anchor.id,
+            cursorTime,
+            cursorTime,
+            anchor?.id||after,
             limit
           )
           .toArray();
@@ -1150,6 +1196,9 @@ export class Room extends DurableObject<Env> {
         created_at: r.created_at,
       }));
 
+    if(url.searchParams.get('ack')==='true'&&agent&&messages.length) {
+      await this.markRead(new Request('https://internal/read',{method:'POST',headers:request.headers,body:JSON.stringify({id:messages.at(-1)!.id})}));
+    }
     return json({ messages });
   }
 }

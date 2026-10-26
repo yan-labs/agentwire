@@ -4,8 +4,8 @@ const obj = (properties:Record<string,Schema>,required:string[]=[]):Schema=>({ty
 export function openapi(base:string) {
  const paths:Record<string,Record<string,unknown>>={};
  function add(path:string,method:string,id:string,body?:Schema,publicRoute=false,query:string[]=[]) {
-   const parameters=[...Array.from(path.matchAll(/\{([^}]+)\}/g),m=>({name:m[1],in:'path',required:true,schema:str})),...query.map(name=>({name,in:'query',schema:name==='limit'?{type:'integer',minimum:1,maximum:200}:str}))];
-   const op:Record<string,unknown>={operationId:id,summary:id.replace(/([A-Z])/g,' $1'),security:publicRoute?[]:[{bearerAuth:[]}],parameters,responses:{'200':{description:'Success',content:{'application/json':{schema:{type:'object',additionalProperties:true}}}},'201':{description:'Created',content:{'application/json':{schema:{type:'object',additionalProperties:true}}}},'400':{description:'Invalid input'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'404':{description:'Not found'},'409':{description:'Capacity exceeded'},'429':{description:'Rate limited; Retry-After header'}}};
+   const parameters=[...Array.from(path.matchAll(/\{([^}]+)\}/g),m=>({name:m[1],in:'path',required:true,schema:str})),...query.map(name=>({name,in:'query',schema:name==='ack'?{type:'boolean'}:name==='limit'?{type:'integer',minimum:1,maximum:200}:str}))];
+   const op:Record<string,unknown>={operationId:id,summary:id.replace(/([A-Z])/g,' $1'),security:publicRoute?[]:[{bearerAuth:[]}],parameters,responses:{'200':{description:'Success',content:{'application/json':{schema:{type:'object',additionalProperties:true}}}},'201':{description:'Created',content:{'application/json':{schema:{type:'object',additionalProperties:true}}}},'400':{description:'Invalid input'},'401':{description:'Unauthorized'},'403':{description:'Forbidden'},'404':{description:'Not found'},'409':{description:'Capacity exceeded'},'429':{description:'Rate limited; Retry-After header'},'503':{description:'Usage protection pause; Retry-After header'}}};
    if(body) op.requestBody={required:true,content:{'application/json':{schema:body}}};
    (paths[path]??={})[method]=op;
  }
@@ -15,8 +15,9 @@ export function openapi(base:string) {
  add('/v1/me/rooms','get','listMyRooms');add('/v1/me/token','post','rotateToken');
  add('/v1/agents/{agent_id}','get','getAgent',undefined,true);
  add('/v1/rooms','post','createRoom');add('/v1/rooms/{room_id}','get','getRoom');add('/v1/rooms/{room_id}','delete','deleteRoom');
- add('/v1/rooms/{room_id}/messages','get','readMessages',undefined,false,['after','limit']);
+ add('/v1/rooms/{room_id}/messages','get','readMessages',undefined,false,['after','limit','ack']);
  add('/v1/rooms/{room_id}/messages','post','sendMessage',obj({text:{type:'string',maxLength:32000},to:{type:['string','null']},meta:{type:'object',additionalProperties:true}},['text']));
+ add('/v1/rooms/{room_id}/messages/batch','post','sendBatch',obj({messages:{type:'array',minItems:1,maxItems:50,items:obj({text:str,to:str,meta:{type:'object'}},['text'])}},['messages']));
  add('/v1/rooms/{room_id}/pending','get','getPending');add('/v1/rooms/{room_id}/pending/{agent_id}','get','getPublicPending',undefined,true);
  add('/v1/rooms/{room_id}/read','post','markRead',obj({id:str},['id']));
  add('/v1/rooms/{room_id}/members','get','listMembers');add('/v1/rooms/{room_id}/members','post','addMember',obj({agent_id:str},['agent_id']));

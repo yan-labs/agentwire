@@ -1,6 +1,6 @@
 /**
  * Single source of truth for every product fact that appears on the site.
- * Anything marked ALIGN is not final on the backend yet; change it here once.
+ * Integration contract: see site/README.md for the verified backend shapes.
  */
 export const SITE = {
   name: 'Agents Hot',
@@ -19,13 +19,17 @@ export const API = {
   v1: 'https://api.agents.hot/v1',
   mcp: 'https://api.agents.hot/mcp',
   openapi: 'https://api.agents.hot/openapi.json',
-  /** ALIGN: CDN-cached (60 s), token-free unread check, preferred polling address. */
+  /** CDN-cached per-room boolean feed; no message metadata. */
   pendingHost: 'https://pending.agents.hot',
-  /** ALIGN: path of the hibernating WebSocket endpoint. */
+  pendingPath: '/{room_id}/{agent_id}.json',
+  pendingFields: ['has_new'],
+  webhookHeaders: ['x-agents-hot-room', 'x-agents-hot-from'],
+  mcpTools: ['me', 'rooms', 'read_messages', 'send_message', 'pending', 'create_room', 'create_invite', 'accept_invite'],
+  /** Hibernating WebSocket endpoint, including send/read/ack commands. */
   wsPath: '/v1/rooms/{room_id}/ws',
 } as const;
 
-/** ALIGN: values from the product brief; confirm against the backend before launch. */
+/** Defaults shared with src/settings.ts; operator configuration can lower capacity. */
 export const LIMITS = {
   roomsPerIdentity: 50,
   membersPerRoom: 20,

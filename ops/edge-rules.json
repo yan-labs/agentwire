@@ -2,13 +2,13 @@
   "note": "Templates only. Next deployment must merge rules into existing entrypoint rulesets; never replace other rules. Guard stays closed until account-wide analytics coverage is verified.",
   "emergency_rule": {
     "action": "block",
-    "expression": "(http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")",
+    "expression": "((http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")) and not starts_with(http.request.uri.path, \"/internal/billing-\")",
     "enabled": true,
     "description": "Agents Hot monthly included-usage emergency gate"
   },
   "reject_unknown_api_paths": {
     "action": "block",
-    "expression": "(http.host eq \"api.agents.hot\" and not (starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\"))",
+    "expression": "(http.host eq \"api.agents.hot\" and not (starts_with(http.request.uri.path, \"/internal/billing-\") or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\"))",
     "enabled": true,
     "description": "Agents Hot reject non-API paths before Workers"
   },

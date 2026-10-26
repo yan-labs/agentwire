@@ -11,7 +11,7 @@
     "preview": "node scripts/preview.mjs",
     "check": "node scripts/check-dist.mjs",
     "check:mobile": "node scripts/check-overflow.mjs / /docs /docs/quickstart /docs/api /pricing /console /multi-agent-chat",
-    "e2e": "node scripts/e2e-console.mjs",
+    "e2e": "node ../test/site-e2e.mjs",
     "og": "node scripts/make-og.mjs"
   },
   "engines": {

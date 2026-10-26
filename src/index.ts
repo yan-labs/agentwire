@@ -5,9 +5,10 @@ import { readObject } from './body';
 import { directory } from './d1-directory';
 import { limits, metric } from './settings';
 import { mcp } from './mcp';
-import { getBudget, budgetError, runBudgetGuard } from './budget';
+import { getBudget, budgetError } from './budget';
 import { openapi } from './openapi';
-export { Room, Directory };
+import { BudgetController } from './budget-controller';
+export { Room, Directory, BudgetController };
 
 function corsHeaders(): HeadersInit {
   return {
@@ -89,9 +90,20 @@ const handler = {
     const { pathname } = url;
     const method = request.method.toUpperCase();
     if(url.hostname==='www.agents.hot') return Response.redirect(`https://agents.hot${pathname}${url.search}`,301);
+    if(!pathname.startsWith('/internal/billing-')&&(/^\/(v1(?:\/|$)|mcp$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname)||url.hostname.endsWith('.workers.dev'))) {
+      const state=await getBudget(env);
+      if(state.level>=4&&!await protectedRequest(request,env)) return withCors(budgetError(state,method,pathname)!);
+    }
     if(pathname==='/openapi.json' && method==='GET') return json(openapi(url.origin));
-    if(pathname==='/v1/public-config' && method==='GET') return json({turnstile_site_key:env.TURNSTILE_SITE_KEY||null,...limits(env)});
-    if(pathname==='/mcp') {const block=budgetError(await getBudget(env),method,pathname);if(block)return block;return mcp(request,env,(r)=>handler.fetch(r,env));}
+    if(pathname==='/v1/public-config' && method==='GET') return json({turnstile_site_key:env.TURNSTILE_SITE_KEY||null,limits:limits(env),...limits(env)});
+    if(pathname==='/internal/billing-alert'||pathname==='/internal/billing-restore') {
+      if(method!=='POST') return json({error:'method not allowed'},405);
+      const restore=pathname.endsWith('restore'), secret=restore?env.OPERATOR_TOKEN:env.BILLING_ALERT_SECRET;
+      const supplied=restore?bearer(request):request.headers.get('cf-webhook-auth');
+      if(!secret||!supplied||!await safeEqual(secret,supplied)) return json({error:'forbidden'},403);
+      return json({ok:true,state:await env.BUDGET_CONTROL.getByName('global').run(restore?'restore':'stop')});
+    }
+    if(pathname==='/mcp') return mcp(request,env,(r)=>handler.fetch(r,env));
     if(url.hostname==='agents.hot'&&!/^\/(v1(?:\/|$)|mcp$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname)&&env.ASSETS) return env.ASSETS.fetch(request);
 
     if (method === "OPTIONS") {
@@ -105,8 +117,8 @@ const handler = {
       return json({ ok: true, service: "agents-hot", ts: new Date().toISOString() });
     }
 
-    const blocked=budgetError(await getBudget(env),method,pathname);
-    if(blocked&&!pathname.startsWith('/v1/admin/migration/')) return withCors(blocked);
+    const blocked=budgetError(await getBudget(env),method==='GET'&&url.searchParams.get('ack')==='true'?'POST':method,pathname);
+    if(blocked&&!await protectedRequest(request,env)) return withCors(blocked);
 
     // Never trust internal headers from clients.
     const clean = new Headers(request.headers);
@@ -283,7 +295,8 @@ const handler = {
     ) {
       // alias: PUT/PATCH /webhook → PATCH agents/me with {webhook_url}  (per-room override)
       internal = "/internal/agents/me";
-    } else if (method === "POST" && rest === "/messages") internal = "/internal/messages";
+    } else if (method === "POST" && rest === "/messages/batch") internal = "/internal/messages/batch";
+    else if (method === "POST" && rest === "/messages") internal = "/internal/messages";
     else if (method === "GET" && rest === "/messages") internal = "/internal/messages";
     else if (method === "GET" && rest === "/ws") internal = "/internal/ws";
     else if (method === "GET" && rest === "/stream") internal = "/internal/stream";
@@ -334,7 +347,7 @@ const handler = {
   },
 } satisfies ExportedHandler<Env>;
 export default {
-  async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext) {ctx.waitUntil(runBudgetGuard(env).then(()=>undefined));},
+  async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext) {ctx.waitUntil(env.BUDGET_CONTROL.getByName('global').run('sample').then(()=>undefined));},
   async fetch(request:Request,env:Env) {
     let res:Response;
     try {res=await handler.fetch(request,env);}
@@ -451,4 +464,21 @@ async function cachedPending(env:Env,room:string,id:string|null,token?:string|nu
   const response=new Response(JSON.stringify(data?{has_new:data.has_new,latest_id:data.latest_id}:{error:'not found'}),{status:data?200:404,headers});
   if(data) {const copy=new Response(response.clone().body,{headers:{...headers,'cache-control':'public, max-age=60'}});await caches.default.put(key,copy);}
   return response;
+}
+
+// Emergency access is restricted to pinned members, supported operations and the protected room.
+async function protectedRequest(request:Request,env:Env) {
+ const url=new URL(request.url), path=url.pathname, method=request.method;
+ if(!url.hostname.endsWith('.workers.dev')) return false;
+ const room='room_cdc26cdd5dab08d7f63427a8';
+ const snapshot=await env.PENDING.get<{protected_members?:string[]}>('room:'+room,'json');
+ const ids=snapshot?.protected_members||[];
+ const match=new RegExp('^/v1/rooms/'+room+'(?:/(.*))?$').exec(path);
+ if(match&&method==='GET'&&match[1]?.startsWith('pending/')) return ids.includes(decodeURIComponent(match[1].slice(8)));
+ const token=bearer(request)||url.searchParams.get('token');
+ if(!token) return false;
+ const me=await directory(env).resolve(token);
+ if(!me||!ids.includes(me.id)) return false;
+ if(['/v1/me','/v1/agents/me','/v1/me/rooms','/v1/me/token'].includes(path)) return ['GET','PATCH','POST'].includes(method);
+ return !!match&&((method==='GET'&&['','messages','pending','ws','stream'].includes(match[1]||''))||(method==='POST'&&['messages','read'].includes(match[1]||''))||(['PATCH','PUT'].includes(method)&&['agents/me','webhook'].includes(match[1]||'')));
 }

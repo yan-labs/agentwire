@@ -1,14 +1,13 @@
 // Local preview that behaves like Workers Static Assets in front of the API:
 //   - serves site/dist (clean URLs, /invite/* -> invite page, 404 page)
 //   - applies dist/_headers (so the CSP is exercised locally)
-//   - proxies /v1/* (and /health) to AW_BACKEND (a LOCAL backend only), with a small shim for
-//     endpoints the backend does not have yet (public-config, invite list/revoke). See scripts/shim.mjs.
+//   - proxies /v1/* and /health to the real LOCAL backend, without API shims.
 // Usage: AW_BACKEND=http://127.0.0.1:8787 PORT=4321 node scripts/preview.mjs
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shim, passHeaders } from './shim.mjs';
+const passHeaders = (h) => { const o=Object.fromEntries(h); for(const k of ['content-encoding','content-length','transfer-encoding','connection']) delete o[k]; return o; };
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const PORT = Number(process.env.PORT || 4321);
@@ -62,7 +61,6 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname.startsWith('/v1/') || url.pathname === '/health') {
     try {
-      if (await shim(req, res, url, BACKEND)) return;
       const chunks = [];
       for await (const c of req) chunks.push(c);
       const body = chunks.length ? Buffer.concat(chunks) : undefined;

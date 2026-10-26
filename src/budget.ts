@@ -7,13 +7,23 @@ export const INCLUDED: Record<string,number> = {
  kv_reads:10_000_000,kv_writes:1_000_000,kv_deletes:1_000_000,kv_lists:1_000_000,kv_storage_bytes:1_000_000_000,
  r2_class_a:1_000_000,r2_class_b:10_000_000,r2_storage_bytes:10_000_000_000,
 };
-export type BudgetState={level:number;month:string;reason:string};
+export type BudgetState={level:number;month:string;reason:string;failures?:number;latched?:boolean};
 let cached:{state:BudgetState;until:number}|undefined;
 function validState(state:BudgetState|null):state is BudgetState {
- return !!state&&Number.isInteger(state.level)&&state.level>=0&&state.level<=4&&typeof state.month==='string'&&/^\d{4}-\d{2}$/.test(state.month);
+ return !!state&&Number.isInteger(state.level)&&state.level>=0&&state.level<=4&&typeof state.month==='string'&&/^\d{4}-\d{2}$/.test(state.month)&&typeof state.reason==='string'&&(state.failures===undefined||Number.isInteger(state.failures)&&state.failures>=0)&&(state.latched===undefined||typeof state.latched==='boolean');
+}
+export function billingWindow(env:Partial<Env>,now:Date) {
+ const day=Math.min(31,numberSetting(env.BILLING_CYCLE_DAY,1));
+ const boundary=(offset:number)=>{
+  const year=now.getUTCFullYear(),month=now.getUTCMonth()+offset;
+  const last=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+  return Date.UTC(year,month,Math.min(day,last));
+ };
+ const offset=now.getTime()<boundary(0)?-1:0;
+ return {start:boundary(offset),end:boundary(offset+1)};
 }
 export function budgetLevel(usage:Record<string,number>,env:Partial<Env>,now=new Date()):BudgetState {
- const month=now.toISOString().slice(0,7), start=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1), end=Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1);
+ const {start,end}=billingWindow(env,now),month=new Date(start).toISOString().slice(0,7);
  const progress=Math.max(1/31,(now.getTime()-start)/(end-start));
  const caps={...INCLUDED,...JSON.parse(env.BUDGET_LIMITS||'{}') as Record<string,number>};
  const thresholds=(env.BUDGET_THRESHOLDS||'0.45,0.65,0.75,0.85').split(',').map(Number);
@@ -33,7 +43,7 @@ export async function getBudget(env:Env):Promise<BudgetState> {
  if(cached&&cached.until>Date.now()) return cached.state;
  let stored:BudgetState|null=null;
  try {stored=await env.PENDING.get<BudgetState>('budget','json');}catch{}
- const state=validState(stored)?stored:{level:4,month:new Date().toISOString().slice(0,7),reason:'usage_unavailable'};
+ const state=validState(stored)?stored:{level:0,month:new Date().toISOString().slice(0,7),reason:'awaiting_first_sample'};
  cached={state,until:Date.now()+60000}; return state;
 }
 export function budgetError(state:BudgetState,method:string,path:string):Response|null {
@@ -44,68 +54,103 @@ export function budgetError(state:BudgetState,method:string,path:string):Respons
  else if(state.level>=1&&method==='POST'&&['/v1/agents','/v1/agents/web','/v1/rooms'].includes(path)) code='BUDGET_CAPACITY_PAUSED';
  return code?Response.json({error:'Agents Hot is conserving its included monthly usage; try next month or use the public CDN unread feed.',code,level:state.level},{status:503,headers:{'retry-after':'600','cache-control':'no-store'}}):null;
 }
-type GraphData={errors?:unknown;data?:{viewer?:{accounts?:Record<string,{sum?:{value:number};max?:{value:number}}[]>[]}}};
+// Account-wide queries: aliases normalize the documented units, not per-script quotas.
+export const USAGE_QUERY = `query AgentsHotUsage($accountTag: string!, $start: Time!, $end: Time!, $startDate: Date!, $endDate: Date!, $storageStart: Time!) {
+ viewer { accounts(filter: {accountTag: $accountTag}) {
+  workers: workersInvocationsAdaptive(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests cpuTimeUs } }
+  invocations: durableObjectsInvocationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } }
+  periodic: durableObjectsPeriodicGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { duration rowsRead rowsWritten } }
+  doStorage: durableObjectsSqlStorageGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { storedBytes } dimensions { namespaceId } }
+  d1: d1AnalyticsAdaptiveGroups(limit: 10000, filter: {date_geq: $startDate, date_leq: $endDate}) { sum { rowsRead rowsWritten } }
+  d1Storage: d1StorageAdaptiveGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { databaseSizeBytes } dimensions { databaseId } }
+  kv: kvOperationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } dimensions { actionType } }
+  kvStorage: kvStorageAdaptiveGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { byteCount } dimensions { namespaceId } }
+  r2: r2OperationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } dimensions { actionType } }
+  r2Storage: r2StorageAdaptiveGroups(limit: 10000, filter: {datetime_geq: $storageStart, datetime_leq: $end}) { max { payloadSize metadataSize } dimensions { bucketName } }
+ } }
+}`;
+type Rows = {sum?:Record<string,number>;max?:Record<string,number>;dimensions?:{actionType?:string}}[];
+export function parseUsage(account:Record<string,Rows>):Record<string,number> {
+ const total=(name:string,field:string,kind:'sum'|'max'='sum')=>{
+  const rows=account[name];
+  if(!Array.isArray(rows)||rows.length>=10000||(kind==='max'&&rows.length===0)) throw Error('missing or truncated usage');
+  return rows.reduce((n,row)=>{const v=row[kind]?.[field];if(typeof v!=='number'||!Number.isFinite(v)||v<0) throw Error('invalid usage');return n+v;},0);
+ };
+ const usage:Record<string,number>={workers_requests:total('workers','requests'),workers_cpu_ms:total('workers','cpuTimeUs')/1000,
+ do_requests:total('invocations','requests'),do_gb_seconds:total('periodic','duration'),do_rows_read:total('periodic','rowsRead'),do_rows_written:total('periodic','rowsWritten'),do_storage_bytes:total('doStorage','storedBytes','max'),
+ d1_rows_read:total('d1','rowsRead'),d1_rows_written:total('d1','rowsWritten'),d1_storage_bytes:total('d1Storage','databaseSizeBytes','max'),
+ kv_storage_bytes:total('kvStorage','byteCount','max'),r2_storage_bytes:total('r2Storage','payloadSize','max')+total('r2Storage','metadataSize','max')};
+ for(const action of ['read','write','delete','list']) usage['kv_'+({read:'reads',write:'writes',delete:'deletes',list:'lists'} as Record<string,string>)[action]]=0;
+ total('kv','requests');
+ for(const row of account.kv) {
+  const key=({read:'kv_reads',write:'kv_writes',delete:'kv_deletes',list:'kv_lists'} as Record<string,string>)[row.dimensions?.actionType||''];
+  if(!key) throw Error('unknown KV action');usage[key]+=row.sum!.requests;
+ }
+ usage.r2_class_a=0;usage.r2_class_b=0;total('r2','requests');
+ for(const row of account.r2) {
+  const action=row.dimensions?.actionType||'';
+  if(['GetObject','HeadObject','HeadBucket'].includes(action)) usage.r2_class_b+=row.sum!.requests;
+  else if(['ListBuckets','ListObjects','PutObject','CopyObject','CreateMultipartUpload','ListMultipartUploads','UploadPart','UploadPartCopy','CompleteMultipartUpload','ListParts','PutBucket'].includes(action)) usage.r2_class_a+=row.sum!.requests;
+  else if(!['DeleteObject','DeleteObjects','AbortMultipartUpload','DeleteBucket'].includes(action)) throw Error('unknown R2 action');
+ }
+ return usage;
+}
+async function storeBudget(env:Env,state:BudgetState) {
+ const previous=await env.PENDING.get<BudgetState>('budget','json');
+ if(JSON.stringify(previous)!==JSON.stringify(state)) await env.PENDING.put('budget',JSON.stringify(state));
+ cached=undefined;
+}
+export async function setExternalGate(env:Env,blocked:boolean,fetcher:typeof fetch=fetch) {
+ if(!env.CF_GUARD_TOKEN||!env.CF_ZONE_ID||!env.WAF_RULESET_ID||!env.WAF_RULE_ID) throw Error('external gate unconfigured');
+ const path=`zones/${env.CF_ZONE_ID}/rulesets/${env.WAF_RULESET_ID}/rules/${env.WAF_RULE_ID}`;
+ const api=async(method:string,body?:unknown)=>{
+  const res=await fetcher(`https://api.cloudflare.com/client/v4/${path}`,{method,headers:{authorization:`Bearer ${env.CF_GUARD_TOKEN}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(5000)});
+  if(!res.ok) throw Error('external gate HTTP failure');
+  const data=await res.json() as {success:boolean;result?:{enabled:boolean}};
+  if(!data.success||typeof data.result?.enabled!=='boolean') throw Error('external gate invalid response');return data.result;
+ };
+ if((await api('GET')).enabled!==blocked) {
+  await api('PATCH',{action:'block',expression:env.WAF_API_EXPRESSION,enabled:blocked,description:'Agents Hot emergency gate'});
+  if((await api('GET')).enabled!==blocked) throw Error('external gate readback mismatch');
+ }
+}
+// This latch is independent of Cron/Analytics and requires an explicit operator recovery.
+export async function billingControl(env:Env,restore=false,fetcher:typeof fetch=fetch) {
+ const state:BudgetState={level:restore?0:4,month:new Date().toISOString().slice(0,7),reason:restore?'operator_recovery':'billing_alert',latched:!restore};
+ if(!restore) {await env.PENDING.put('billing-latch','true');await storeBudget(env,state);}
+ await setExternalGate(env,!restore,fetcher);
+ if(restore) {await env.PENDING.delete('billing-latch');await storeBudget(env,state);}
+ return state;
+}
 export async function runBudgetGuard(env:Env,fetcher:typeof fetch=fetch,now=new Date()) {
  if(env.BUDGET_ENABLED!=='true') return;
+ let previous:BudgetState|null=null;
+ try {previous=await env.PENDING.get<BudgetState>('budget','json');}catch{}
+ const old=validState(previous)?previous:{level:0,month:now.toISOString().slice(0,7),reason:'awaiting_first_sample'};
  let state:BudgetState;
  try {
-   if(!env.CF_ANALYTICS_TOKEN||!env.CF_ACCOUNT_ID||!env.USAGE_QUERY) throw Error('missing analytics configuration');
-   const first=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)).toISOString();
-   const res=await fetcher('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{authorization:`Bearer ${env.CF_ANALYTICS_TOKEN}`,'content-type':'application/json'},body:JSON.stringify({query:env.USAGE_QUERY,variables:{accountTag:env.CF_ACCOUNT_ID,start:first,end:now.toISOString(),startDate:first.slice(0,10),endDate:now.toISOString().slice(0,10)}}),signal:AbortSignal.timeout(15000)});
-   if(!res.ok) throw Error('analytics http failure');
-   const data=await res.json() as GraphData, account=data.data?.viewer?.accounts?.[0];
-   if(data.errors||!account) throw Error('analytics invalid response');
-   const usage:Record<string,number>={};
-   for(const key of Object.keys(INCLUDED)) {
-     const rows=account[key];
-     if(!Array.isArray(rows)) continue;
-     // A valid empty monthly aggregate is zero; missing aliases/errors still fail closed.
-     if(rows.length===0) {usage[key]=0;continue;}
-     // Grouped or truncated datasets cannot be used as a complete account aggregate.
-     if(rows.length!==1) continue;
-     const value=rows[0]?.sum?.value??rows[0]?.max?.value;
-     if(typeof value==='number') usage[key]=value;
-   }
-   state=budgetLevel(usage,env,now);
- } catch {state={level:4,month:now.toISOString().slice(0,7),reason:'usage_unavailable'};}
- let previous:BudgetState|null=null;try {previous=await env.PENDING.get<BudgetState>('budget','json');}catch{}
- const old=validState(previous)?previous:null;
- let published=old;
- const publish=async(next:BudgetState)=>{
-   if(!published||published.level!==next.level||published.month!==next.month) {
-     await env.PENDING.put('budget',JSON.stringify(next));published=next;cached=undefined;
-   }
- };
- const gateConfigured=env.CF_GUARD_TOKEN&&env.CF_ZONE_ID&&env.WAF_RULESET_ID&&env.WAF_RULE_ID&&env.CF_ACCOUNT_ID;
- if(!gateConfigured) {state={...state,level:4,reason:'external_gate_unconfigured'};await publish(state);return {state,external_gate:false};}
- // Publish an escalation before touching external controls; publish recovery only after verified readback.
- if(!old||state.level>old.level) await publish({...state,level:Math.max(state.level,old?old.level:4)});
- const api=async(path:string,method='GET',body?:unknown)=>{
-   const res=await fetcher(`https://api.cloudflare.com/client/v4/${path}`,{method,headers:{authorization:`Bearer ${env.CF_GUARD_TOKEN}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
-   if(!res.ok) throw Error('external budget gate http failure');
-   const result=await res.json() as {success?:boolean;result?:{enabled?:boolean;previews_enabled?:boolean}};
-   if(!result.success||typeof result.result?.enabled!=='boolean') throw Error('external budget gate rejected');
-   return result.result;
- };
- const blocked=state.level>=4;
- try {
-   const subdomain=`accounts/${env.CF_ACCOUNT_ID}/workers/scripts/${encodeURIComponent(env.CF_SCRIPT_NAME||'agentwire')}/subdomain`;
-   const desiredWorker=!blocked&&env.ALLOW_WORKERS_DEV==='true';
-   const current=await api(subdomain);
-   if(current.enabled!==desiredWorker||current.previews_enabled!==false) {
-     await api(subdomain,'POST',{enabled:desiredWorker,previews_enabled:false});
-     const readback=await api(subdomain);
-     if(readback.enabled!==desiredWorker||readback.previews_enabled!==false) throw Error('subdomain readback mismatch');
-   }
-   const rule=`zones/${env.CF_ZONE_ID}/rulesets/${env.WAF_RULESET_ID}/rules/${env.WAF_RULE_ID}`;
-   const currentRule=await api(rule);
-   if(currentRule.enabled!==blocked) {
-     await api(rule,'PATCH',{action:'block',expression:env.WAF_API_EXPRESSION||'(http.host eq "api.agents.hot" or http.host eq "pending.agents.hot" or starts_with(http.request.uri.path, "/v1") or starts_with(http.request.uri.path, "/pending") or http.request.uri.path eq "/mcp" or http.request.uri.path eq "/openapi.json" or http.request.uri.path eq "/health")',enabled:blocked,description:'Agents Hot monthly included-usage emergency gate'});
-     if((await api(rule)).enabled!==blocked) throw Error('WAF readback mismatch');
-   }
-   await publish(state);return {state,external_gate:true};
+  if(!env.CF_ANALYTICS_TOKEN||!env.CF_ACCOUNT_ID) throw Error('missing analytics configuration');
+  const first=new Date(billingWindow(env,now).start).toISOString();
+  const res=await fetcher('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{authorization:`Bearer ${env.CF_ANALYTICS_TOKEN}`,'content-type':'application/json'},body:JSON.stringify({query:env.USAGE_QUERY||USAGE_QUERY,variables:{accountTag:env.CF_ACCOUNT_ID,start:first,end:now.toISOString(),startDate:first.slice(0,10),endDate:now.toISOString().slice(0,10),storageStart:now.toISOString().slice(0,10)+'T00:00:00.000Z'}}),signal:AbortSignal.timeout(5000)});
+  if(!res.ok) throw Error('analytics HTTP failure');
+  const data=await res.json() as {errors?:unknown;data?:{viewer?:{accounts?:Record<string,Rows>[]}}};
+  if(data.errors||!data.data?.viewer?.accounts?.[0]) throw Error('analytics invalid response');
+  state=budgetLevel(parseUsage(data.data.viewer.accounts[0]),env,now);
+  if(state.reason.startsWith('usage_unavailable')) throw Error('incomplete usage');
+  state.failures=0;
  } catch {
-   state={...state,level:4,reason:'external_gate_failed'};await publish(state);
-   return {state,external_gate:false};
+  const failures=(old.failures||0)+1;
+  state={...old,failures,reason:'analytics_failure',level:failures>=numberSetting(env.USAGE_FAILURE_THRESHOLD,3)?Math.max(3,old.level):old.level};
+  console.warn(JSON.stringify({service:'agents-hot',event:'analytics_failure',failures,level:state.level}));
+ }
+ if(old.latched||await env.PENDING.get('billing-latch')==='true') state={...state,level:4,latched:true,reason:'billing_alert'};
+ if(state.level>old.level||state.latched) await storeBudget(env,state);
+ try {
+  await setExternalGate(env,state.level>=4,fetcher);
+  await storeBudget(env,state);return {state,external_gate:true};
+ } catch {
+  console.warn(JSON.stringify({service:'agents-hot',event:'external_gate_failed'}));
+  state={...state,level:Math.max(old.level,state.level),reason:'external_gate_failed'};
+  await storeBudget(env,state);return {state,external_gate:false};
  }
 }
