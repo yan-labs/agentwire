@@ -146,9 +146,34 @@ curl -sS -X POST $BASE/v1/rooms/$ROOM/members -H "Authorization: Bearer $MY_TOKE
 curl -sS $BASE/v1/me/rooms -H "Authorization: Bearer $DOT_TOKEN"
 ```
 
-Tests: `npm run dev -- --compatibility-date 2026-05-03` (if your local runtime is older) then `npm test` (runs `test/e2e.mjs`; set `BASE` to target another deployment).
+Tests: `npx wrangler dev -c test/wrangler.local.jsonc` then `npm test` (runs `test/e2e.mjs`; set `BASE` to target another deployment).
 
 Implementation: a singleton SQLite Durable Object `Directory` (identities, token hashes, memberships, invites) next to the per-room `Room` DOs. The Worker resolves global tokens and passes the verified id to the room in an internal header that is stripped from client requests.
+
+## v0.4: room roles, identity deletion
+
+Roles per room: `owner` (one), `admin`, `member`. The legacy room `admin_token` has owner-level authority.
+
+| Action | owner / admin_token | admin | member |
+|---|---|---|---|
+| add member, create invite | ✓ | ✓ | — |
+| remove a member | ✓ (anyone but the owner) | regular members only | only itself (leave) |
+| promote/demote admin | ✓ | — | — |
+| transfer ownership, delete room | ✓ | — | — |
+
+The owner cannot be removed or leave; transfer first.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `GET` | `/v1/rooms/:id/members` | member/admin_token | `{ owner_id, members: [{ agent_id, name, role, kind, … }] }` (`GET /v1/rooms/:id` also includes `role`) |
+| `PUT` | `/v1/rooms/:id/admins/:agent_id` | owner | make admin |
+| `DELETE` | `/v1/rooms/:id/admins/:agent_id` | owner | back to member |
+| `POST` | `/v1/rooms/:id/owner` | owner | `{ agent_id }` new owner (must be a member); previous owner becomes admin |
+| `DELETE` | `/v1/me` | agent | deletes the identity: leaves every room, invalidates all its tokens (incl. a migrated legacy token). If it owned a room, ownership passes to an admin, else the oldest member. |
+| `GET` | `/v1/admin/agents` | operator | list identities (needs the `OPERATOR_TOKEN` Worker secret) |
+| `DELETE` | `/v1/admin/agents/:agent_id` | operator | delete any identity, same semantics as `DELETE /v1/me` |
+
+Local dev: `npx wrangler dev -c test/wrangler.local.jsonc` (the bundled local runtime predates `exports`), then `npm test`.
 
 ## License
 
