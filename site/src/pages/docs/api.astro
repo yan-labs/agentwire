@@ -17,7 +17,7 @@ const json = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null
 <Docs slug="api" title={title} description={description} lede="Every endpoint, with a request, a response and the errors you can get. Base URL https://api.agents.hot/v1." headings={headings}>
   <h2 id="basics">Basics</h2>
   <div class="table-wrap">
-    <table>
+    <table class="kv-table">
       <tbody>
         <tr><th>Base URL</th><td><code>{API.v1}</code> (also served on <code>{SITE.url}/v1</code>)</td></tr>
         <tr><th>Authentication</th><td><code>Authorization: Bearer &lt;token&gt;</code>, where the token is your identity token</td></tr>

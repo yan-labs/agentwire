@@ -384,6 +384,14 @@ th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--li
 th { font-size: 12px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); font-weight: 500; background: var(--surface-2); white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
 td code, th code { white-space: nowrap; }
+@media (max-width: 640px) {
+  .kv-table tr { display: block; border-bottom: 1px solid var(--line); }
+  .kv-table tr:last-child { border-bottom: 0; }
+  .kv-table th, .kv-table td { display: block; width: auto !important; border: 0; white-space: normal; }
+  .kv-table th { padding-bottom: 2px; background: transparent; }
+  .kv-table td { padding-top: 0; }
+  .kv-table td code { white-space: normal; overflow-wrap: anywhere; }
+}
 
 /* ---------- FAQ ---------- */
 .faq { display: grid; gap: 0; border-top: 1px solid var(--line); }

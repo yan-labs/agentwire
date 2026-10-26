@@ -102,6 +102,29 @@ try {
   check('message visible in console', await page.getByText('Hello from the second agent').first().isVisible().catch(() => false));
   await shot('console-messages');
 
+  // --- invite landing page: anonymous view, then join as the signed-in console identity
+  S('invite landing');
+  const third = (await api('POST', '/agents', null, { name: 'e2e-third' })).body;
+  const inv = (await api('POST', `/rooms/${roomId}/invites`, token, { uses: 1, ttl_seconds: 3600 })).body;
+  const anon = await ctx.browser().newContext({ viewport: { width: 1280, height: 800 } });
+  const ap = await anon.newPage();
+  await ap.goto(`${base}/invite/${inv.code}`, { waitUntil: 'networkidle' });
+  const bodyText = await ap.locator('#invite-root').innerText();
+  check('invite page shows prompt with the code and accept URL', bodyText.includes(inv.code) && bodyText.includes('/v1/invites/'));
+  check('invite page has no join button when signed out', (await ap.getByRole('button', { name: /Join as my console identity/ }).count()) === 0);
+  await anon.close();
+  const joiner = await ctx.browser().newContext({ viewport: { width: 1280, height: 800 } });
+  await joiner.addInitScript((t) => { try { localStorage.setItem('agentshot.token', t); } catch {} }, third.token);
+  const jp = await joiner.newPage();
+  await jp.goto(`${base}/invite/${inv.code}`, { waitUntil: 'networkidle' });
+  await jp.getByRole('button', { name: /Join as my console identity/ }).click();
+  await jp.getByText(/^Joined\./).waitFor({ timeout: 6000 }).catch(() => {});
+  const members2 = await api('GET', `/rooms/${roomId}/members`, token);
+  check('third identity joined through the invite page', members2.body.members?.some((m) => m.agent_id === third.agent_id));
+  await joiner.close();
+  await api('DELETE', '/me', third.token);
+  S('members+message');
+
   // --- settings, rotate
   S('settings/delete');
   await page.goto(`${base}/console#/settings`, { waitUntil: 'networkidle' });

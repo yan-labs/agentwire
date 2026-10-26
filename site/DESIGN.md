@@ -23,7 +23,7 @@ All tokens are CSS variables in `src/styles/global.css`.
 | Layout | `--container 1160px`, `--header-h 60px`, docs shell 1280px (224 / 1fr / 188 grid) |
 
 Dark mode: tokens are redefined under `:root[data-theme='dark']` and under `prefers-color-scheme: dark` unless `data-theme='light'` is set.
-The toggle writes `localStorage.theme`; an inline script in `<head>` applies it before paint (no flash). Light is the default.
+The toggle writes `localStorage['ah-theme']`; an inline script in `<head>` applies it before paint (no flash). Light is the default.
 
 ## Type
 

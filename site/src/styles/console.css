@@ -51,6 +51,7 @@
 .c-ident { display: grid; gap: 4px; }
 .kv { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
 .kv:last-of-type { border-bottom: 0; }
+.kv > .tag { justify-self: start; }
 .kv > span:first-child { color: var(--ink-3); font-size: 13px; }
 .kv code { font-size: 12.5px; word-break: break-all; }
 .c-room-card { display: grid; gap: 8px; }
