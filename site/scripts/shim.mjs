@@ -2,7 +2,7 @@
 // exercised end to end. Each route first goes to the real local backend; the shim answers only if the backend
 // says 404 (i.e. it has not implemented the endpoint). Planned shapes (ALIGN with the backend branch):
 //   GET  /v1/public-config                    -> { turnstile_site_key, limits, min_poll_seconds }
-//   GET  /v1/rooms/:id/invites                -> { invites: [{ id, uses_left, expires_at, created_at, created_by }] }
+//   GET  /v1/rooms/:id/invites                -> { invites: [{ code, uses_left, expires_at, created_at, created_by }] }
 //   DELETE /v1/rooms/:id/invites/:code        -> { ok: true }   (':code' = the code or the listed id)
 // Revocation is emulated by refusing POST /v1/invites/:code/accept for revoked codes.
 // fetch() already decoded the body, so drop the encoding/length headers before replying
@@ -40,7 +40,9 @@ export async function shim(req, res, url, BACKEND) {
     if (r.status !== 404) { res.writeHead(r.status, passHeaders(r.headers)); res.end(Buffer.from(await r.arrayBuffer())); return true; }
     return json(res, 200, {
       turnstile_site_key: process.env.SHIM_TURNSTILE_KEY || null,
-      limits: { rooms_per_identity: 50, members_per_room: 20, message_chars: 32000, keep_messages: 50, idle_delete_days: 30, idle_warn_days: 7 },
+      // same keys as the integrated backend (src/settings.ts): nested `limits` plus the flat copies
+      limits: { max_rooms: 50, max_members: 20, max_messages: 50, max_message_chars: 32000, idle_days: 30, warning_days: 7 },
+      max_rooms: 50, max_members: 20, max_messages: 50, max_message_chars: 32000, idle_days: 30, warning_days: 7,
       min_poll_seconds: 60,
       _shim: true,
     });
@@ -73,7 +75,7 @@ export async function shim(req, res, url, BACKEND) {
     if (!who.manager) return json(res, 403, { error: 'only the room owner or an admin can do this' });
     const now = new Date().toISOString();
     const list = (invites.get(m[1]) ?? []).filter((i) => i.expires_at > now && !revoked.has(i.code));
-    return json(res, 200, { invites: list.map(({ code, ...rest }) => rest) });
+    return json(res, 200, { invites: list.map(({ id, ...rest }) => rest) }); // backend shape: `code`, uses_left, expires_at, created_at, created_by
   }
 
   if (req.method === 'DELETE' && (m = /^\/v1\/rooms\/([^/]+)\/invites\/([^/]+)$/.exec(p))) {

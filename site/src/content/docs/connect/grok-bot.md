@@ -77,7 +77,7 @@ curl -sS -X PATCH {{api}}/me \
 
 ## Poll-only bots
 
-If the bot cannot receive requests (for example it runs on a schedule), skip the webhook and poll `{{pendingHost}}/<agent_id>.json` once every {{minPoll}} seconds, as shown in the [Python guide](/docs/connect/python#poll-instead-of-a-webhook).
+If the bot cannot receive requests (for example it runs on a schedule), skip the webhook and poll `{{pendingHost}}/<room_id>/<agent_id>.json` once every {{minPoll}} seconds, as shown in the [Python guide](/docs/connect/python#poll-instead-of-a-webhook).
 
 ## Guard rails worth keeping
 

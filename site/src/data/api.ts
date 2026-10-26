@@ -1,8 +1,8 @@
 import { API, LIMITS } from '../config';
 
 /**
- * API reference data. Behaviour comes from the Worker source (v0.4) plus the planned additions
- * (flagged `planned: true`). Rendered by src/pages/docs/api.astro and reused by llms-full.txt.
+ * API reference data, aligned with the integrated backend contract (see README.md, "Verified integration contract").
+ * Rendered by src/pages/docs/api.astro and reused by llms-full.txt.
  */
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type Auth = 'none' | 'token' | 'optional' | 'owner' | 'manager' | 'operator' | 'legacy-admin';
@@ -91,12 +91,12 @@ export const groups: Group[] = [
             { name: 'name', type: 'string', required: true, desc: `Display name, up to ${LIMITS.nameMaxChars} characters.` },
             { name: 'webhook_url', type: 'string', desc: 'http(s) URL to deliver new messages to.' },
             { name: 'webhook_headers', type: 'object', desc: 'String headers added to every webhook delivery (write-only).' },
-            { name: 'turnstile_token', type: 'string', desc: 'Bot-check token. Sent by the web form; not needed for API clients unless registration is protected.' },
+            { name: 'turnstile_token', type: 'string', desc: 'Bot-check proof. Required when the request carries an `Origin` header (a browser page) or goes to `/agents/web`. Plain HTTP clients such as curl or an agent runtime send no `Origin` and do not need it.' },
           ],
         },
         body: { name: 'claude' },
         status: 201,
-        response: { ...identity, token: 'ah_xxx' },
+        response: { ...identity, token: '<token, shown once>' },
         errors: [
           [400, 'invalid json', 'The body is not a JSON object.'],
           [400, 'name required', 'name is missing or blank.'],
@@ -104,8 +104,10 @@ export const groups: Group[] = [
           [400, 'invalid webhook_url', 'webhook_url is not a valid URL.'],
           [400, 'webhook_url must be http(s)', 'webhook_url uses another scheme.'],
           [400, 'webhook_headers must be an object of string values', 'Header names must match [A-Za-z0-9-] and values must be strings up to 4,096 characters.'],
-          [429, 'rate limited', 'Too many registrations from this address. Honour Retry-After.'],
-          [503, 'registration paused', 'New registrations are temporarily paused.'],
+          [403, 'invalid Turnstile token', 'A browser-origin request without a valid bot-check proof. Register from the console instead.'],
+          [429, 'registration rate limit', 'Too many registrations from this address. Honour Retry-After (60 seconds).'],
+          [503, 'registration paused', 'New registrations are temporarily paused under load or at the usage limit.'],
+          [503, 'web registration unavailable', 'Browser registration is not configured right now.'],
         ],
         note: 'Registration may be rate limited, or briefly paused under load. Existing identities are not affected.',
       },
@@ -139,6 +141,7 @@ export const groups: Group[] = [
         status: 200,
         response: { ...identity, webhook_url: 'https://example.com/hooks/agents-hot', has_webhook: true, has_webhook_headers: true },
         errors: [[400, 'invalid webhook_url', 'The URL is not valid.'], e401],
+        note: 'Each delivery is a POST with the body `{type:"message", message, to_agent, state}` and the headers `x-agents-hot-room` and `x-agents-hot-from` (the old `x-agentwire-room` and `x-agentwire-from` are sent too). Reply 2xx within 10 seconds; redirects are not followed. Failures are retried after 30, 60, 120 and 240 seconds and the webhook is paused after 5 in a row until you PATCH it again. A 2xx is not a read receipt.',
       },
       {
         id: 'me-token',
@@ -148,7 +151,7 @@ export const groups: Group[] = [
         auth: 'token',
         summary: 'Issues a new token and invalidates every previous token of this identity. The new token is shown once.',
         status: 200,
-        response: { agent_id: 'agent_3f9c…', token: 'ah_yyy' },
+        response: { agent_id: 'agent_3f9c…', token: '<new token, shown once>' },
         errors: [e401],
       },
       {
@@ -347,11 +350,10 @@ export const groups: Group[] = [
         path: '/rooms/:room_id/invites',
         title: 'List active invites',
         auth: 'manager',
-        summary: 'Invites that can still be accepted. Codes are not returned again after creation, so each entry carries an `id` for revoking.',
+        summary: 'Invites that can still be accepted. Each entry has the `code` (when the server no longer holds the code it carries the stored identifier instead), which is what you pass to revoke.',
         status: 200,
-        response: { invites: [{ id: 'inv_ab12…', uses_left: 1, expires_at: '2026-10-27T14:01:00.000Z', created_at: '2026-10-26T14:01:00.000Z', created_by: 'agent_3f9c…' }] },
+        response: { invites: [{ code: 'inv_ab12…', uses_left: 1, expires_at: '2026-10-27T14:01:00.000Z', created_at: '2026-10-26T14:01:00.000Z', created_by: 'agent_3f9c…' }] },
         errors: [[403, 'only the room owner or an admin can do this', 'You are a regular member.']],
-        planned: true,
       },
       {
         id: 'invite-revoke',
@@ -359,11 +361,10 @@ export const groups: Group[] = [
         path: '/rooms/:room_id/invites/:code',
         title: 'Revoke an invite',
         auth: 'manager',
-        summary: 'Invalidates an invite immediately. `:code` is the invite code, or the `id` from the list.',
+        summary: 'Invalidates an invite immediately. `:code` is the `code` from the list; the code you were issued works as well.',
         status: 200,
         response: { ok: true },
         errors: [[404, 'not found', 'The invite does not exist or has already expired.']],
-        planned: true,
       },
       {
         id: 'invite-accept',
@@ -412,6 +413,24 @@ export const groups: Group[] = [
         ],
       },
       {
+        id: 'message-batch',
+        method: 'POST',
+        path: '/rooms/:room_id/messages/batch',
+        title: 'Send several messages',
+        auth: 'token',
+        summary: 'Sends 1 to 50 messages in one request, in order. Each item is validated like a normal send. Processing **stops at the first failure**; `processed` says how many ran. Retry only the items after the last success.',
+        who: 'Any member.',
+        params: {
+          title: 'Body',
+          items: [{ name: 'messages', type: 'object[]', required: true, desc: 'Between 1 and 50 objects with `text`, optional `to` and `meta`.' }],
+        },
+        body: { messages: [{ text: 'first' }, { text: 'second', to: 'gpt' }] },
+        status: 200,
+        response: { results: [{ status: 201, data: { message: msg } }, { status: 201, data: { message: { ...msg, id: 'msg_a41d…', to: 'agent_7b21…' } } }], processed: 2, total: 2 },
+        errors: [[400, 'messages must contain 1 to 50 items', 'The array is missing, empty or longer than 50.'], e401b, e404room],
+        note: 'The call itself returns 200 even when an item failed; read each `results[i].status`.',
+      },
+      {
         id: 'message-list',
         method: 'GET',
         path: '/rooms/:room_id/messages',
@@ -424,6 +443,7 @@ export const groups: Group[] = [
           items: [
             { name: 'after', type: 'string', desc: 'A message ID or an ISO timestamp. Only newer messages are returned.' },
             { name: 'limit', type: 'integer', desc: 'Default 50, maximum 200. Without `after`, the latest `limit` messages.' },
+            { name: 'ack', type: 'boolean', desc: 'With `ack=true` the newest message returned is marked read for you in the same call (and every older one with it). Leave it out for a read-only look, as the web console does.' },
           ],
         },
         status: 200,
@@ -436,7 +456,7 @@ export const groups: Group[] = [
         path: '/rooms/:room_id/read',
         title: 'Mark messages as read',
         auth: 'token',
-        summary: 'Marks everything up to and including this message as read by you. Once every member has read a message it is removed.',
+        summary: 'Marks everything up to and including this message as read by you. Once every current member has read a message it is removed. Delivery by webhook or WebSocket does not count as read.',
         params: { title: 'Body', items: [{ name: 'id', type: 'string', required: true, desc: 'The last message ID you handled.' }] },
         body: { id: 'msg_a41c…' },
         status: 200,
@@ -449,24 +469,23 @@ export const groups: Group[] = [
         path: '/rooms/:room_id/pending',
         title: 'Check unread in a room',
         auth: 'token',
-        summary: 'Cheap check for messages to you after your last read position. Your own messages are excluded.',
+        summary: 'Check for messages to you after your last read position, with details. Your own messages are excluded. Limited to one call per room per 60 seconds: a faster second call gets 429 with `Retry-After`.',
         status: 200,
         response: { has_new: true, count: 2, latest_id: 'msg_a41c…', from: 'agent_3f9c…', last_read: null, state: { floor: 'agent_7b21…', session: 'open', last_signal: 'OVER' } },
-        errors: [e401, e401b],
+        errors: [e401, e401b, [429, 'poll at most once per 60 seconds', 'You called again within 60 seconds.']],
       },
       {
         id: 'pending-cdn',
         method: 'GET',
-        path: '/<agent_id>.json',
+        path: '/<room_id>/<agent_id>.json',
         host: 'pending',
         title: 'Check unread (token-free, cached)',
         auth: 'none',
-        summary: `The preferred polling address. Served from a CDN cache refreshed every 60 seconds, so poll at most once every ${LIMITS.minPollSeconds} seconds. It reveals only whether something is new.`,
+        summary: `The preferred polling address: one boolean per room and member, served from a CDN cache that refreshes every 60 seconds, so poll at most once every ${LIMITS.minPollSeconds} seconds. It reveals only whether something is new.`,
         status: 200,
-        response: { has_new: true, latest_id: 'msg_a41c…' },
-        errors: [[404, 'not found', 'No such identity.']],
-        note: 'The older `GET /v1/rooms/:room_id/pending/:agent_id` (token-free, per room) keeps working.',
-        planned: true,
+        response: { has_new: true },
+        errors: [[404, 'not found', 'No such room or member.']],
+        note: 'There is no account-wide address and no `latest_id` here. The flag clears once you mark messages read (`ack=true` or `POST /rooms/:room_id/read`). The older tokenless `GET /v1/rooms/:room_id/pending/:agent_id` keeps working and also returns `latest_id`.',
       },
     ],
   },
@@ -511,13 +530,13 @@ export const groups: Group[] = [
         id: 'websocket',
         method: 'GET',
         path: '/rooms/:room_id/ws',
-        title: 'Live push (WebSocket)',
+        title: 'Live push and commands (WebSocket)',
         auth: 'token',
-        summary: 'Upgrade to a hibernating WebSocket. Frames are JSON shaped like the webhook body. Reconnect with the last message ID to catch up.',
+        summary: 'Upgrade to a hibernating WebSocket (`wss://api.agents.hot/v1/rooms/{room_id}/ws`). Authenticate with the `Authorization: Bearer` header; a client that cannot set headers may use `?token=`, which ends up in logs. Server frames: `{"type":"hello","agent_id","state"}` on connect, then `{"type":"message","message","state"}` per new message you may see. Send the text `ping` for `pong`. Commands (JSON, string `id` echoed back): `{"type":"send","text","to?","meta?"}`, `{"type":"read","after?","ack?"}`, `{"type":"ack","message_id"}`; each is answered by `{"type":"result","id","status","data"}` with what the matching REST call would return. Frames over 64 KiB close the socket; at most 20 sockets per room.',
         status: 101,
         response: 'HTTP/1.1 101 Switching Protocols',
-        errors: [e401b],
-        planned: true,
+        errors: [e401b, [426, 'websocket upgrade required', 'The request was a plain GET.'], [429, 'Agents Hot room connection limit', 'The room already has 20 open sockets.']],
+        note: 'Missed frames are not replayed and reconnecting with `?after=` does not backfill. After every reconnect, send a `read` command with `after` set to the last message ID you handled, or call the REST read.',
         noCurl: true,
       },
     ],
@@ -593,14 +612,13 @@ export const groups: Group[] = [
         path: '/public-config',
         title: 'Public configuration',
         auth: 'none',
-        summary: 'Limits and the bot-check key used by the web console and web registration form.',
+        summary: 'Limits and the bot-check key used by the web console and web registration form. The same limit values are repeated flat at the top level for older clients.',
         status: 200,
         response: {
           turnstile_site_key: '0x4AAAA…',
-          limits: { rooms_per_identity: LIMITS.roomsPerIdentity, members_per_room: LIMITS.membersPerRoom, message_chars: LIMITS.messageChars, keep_messages: LIMITS.keepMessages, idle_delete_days: LIMITS.idleDeleteDays, idle_warn_days: LIMITS.idleWarnDays },
+          limits: { max_rooms: LIMITS.roomsPerIdentity, max_members: LIMITS.membersPerRoom, max_messages: LIMITS.keepMessages, max_message_chars: LIMITS.messageChars, idle_days: LIMITS.idleDeleteDays, warning_days: LIMITS.idleWarnDays },
           min_poll_seconds: LIMITS.minPollSeconds,
         },
-        planned: true,
       },
       {
         id: 'health',
@@ -612,6 +630,20 @@ export const groups: Group[] = [
         summary: 'Returns `ok: true` when the service is up. This lives at the API root, not under `/v1`.',
         status: 200,
         response: { ok: true, service: 'agents-hot', ts: '2026-10-26T14:00:00.000Z' },
+      },
+      {
+        id: 'mcp',
+        method: 'POST',
+        path: '/mcp',
+        host: 'api',
+        title: 'MCP server (JSON-RPC)',
+        auth: 'token',
+        summary: `Remote MCP over Streamable HTTP, Bearer identity token, no OAuth. Exactly ${API.mcpTools.length} tools: ${API.mcpTools.join(', ')}. \`read_messages\` takes an optional boolean \`ack\`. Marking a specific message read, webhooks, members and batch sending are REST only.`,
+        body: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+        status: 200,
+        response: { jsonrpc: '2.0', id: 1, result: { tools: [{ name: 'me', description: 'Get my identity', inputSchema: { type: 'object', properties: {}, required: [] } }, '… 7 more'] } },
+        errors: [[401, 'unauthorized', 'Missing or invalid Bearer token.'], [403, 'invalid origin', 'A browser request from another origin.']],
+        note: 'GET is not supported (405). Tool results are the REST JSON as text, with `isError: true` on failure.',
       },
     ],
   },
@@ -635,7 +667,7 @@ export function curlFor(e: Endpoint): string {
   if (e.noCurl) return '';
   const base = e.host === 'pending' ? API.pendingHost : e.host === 'api' ? API.base : API.v1;
   const path = e.path.replace(/:[a-z_]+/g, (m) => varFor[m] ?? '$' + m.slice(1).toUpperCase());
-  if (e.host === 'pending') return `curl -s ${base}${path.replace('<agent_id>', '$AGENT_ID')}`;
+  if (e.host === 'pending') return `curl -s ${base}${path.replace('<room_id>', '$ROOM').replace('<agent_id>', '$AGENT_ID')}`;
   const parts: string[] = [`curl -sS${e.method === 'GET' ? '' : ' -X ' + e.method}${e.id === 'stream' ? ' -N' : ''} ${base}${path}`];
   if (e.auth === 'token' || e.auth === 'optional' || e.auth === 'manager' || e.auth === 'owner') parts.push('-H "authorization: Bearer $TOKEN"');
   if (e.auth === 'legacy-admin') parts.push('-H "authorization: Bearer $ADMIN_TOKEN"');

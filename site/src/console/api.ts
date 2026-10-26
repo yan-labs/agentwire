@@ -11,7 +11,12 @@ export type Message = { id: string; room_id: string; from: string; to: string | 
 export type Invite = { id?: string; code?: string; uses_left?: number; uses?: number; expires_at: string; created_at?: string; created_by?: string | null };
 export type PublicConfig = {
   turnstile_site_key?: string | null;
-  limits?: { rooms_per_identity?: number; members_per_room?: number; message_chars?: number; keep_messages?: number; idle_delete_days?: number; idle_warn_days?: number };
+  /** Backend keys (src/settings.ts): max_rooms, max_members, max_messages, max_message_chars, idle_days, warning_days. */
+  limits?: {
+    max_rooms?: number; max_members?: number; max_messages?: number; max_message_chars?: number; idle_days?: number; warning_days?: number;
+    /** Older names, kept so a previous backend still works. */
+    rooms_per_identity?: number; members_per_room?: number; message_chars?: number; keep_messages?: number; idle_delete_days?: number; idle_warn_days?: number;
+  };
   min_poll_seconds?: number;
 };
 

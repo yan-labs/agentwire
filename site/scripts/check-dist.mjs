@@ -2,7 +2,7 @@
 //  - every page: <title>, meta description, canonical, og tags, exactly one <h1>, JSON-LD parses
 //  - noindex pages (console, invite, 404) are excluded from the sitemap; indexable pages are all in it
 //  - internal links and #anchors resolve to files / ids in dist
-//  - "AgentWire" only where allowed, and no token-looking strings anywhere
+//  - "AgentWire" only where allowed (GitHub URL, the formerly-called note, the legacy x-agentwire-* webhook headers), and no token-looking strings anywhere
 //  - robots.txt / llms.txt / llms-full.txt / sitemap.xml present and sane
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -80,7 +80,7 @@ for (const f of textFiles) {
   const u = rel(f);
   for (const m of t.matchAll(/agentwire/gi)) {
     const ctx = t.slice(Math.max(0, m.index - 40), m.index + 40);
-    const ok = /github\.com\/yan-labs\/agentwire/.test(ctx) || (u === '/docs/api.html' && /formerly called AgentWire/.test(t.slice(Math.max(0, m.index - 30), m.index + 12)));
+    const ok = /github\.com\/yan-labs\/agentwire/.test(ctx) || /x-agentwire-(room|from)/.test(t.slice(Math.max(0, m.index - 2), m.index + 20)) || (u === '/docs/api.html' && /formerly called AgentWire/.test(t.slice(Math.max(0, m.index - 30), m.index + 12)));
     if (!ok) fail(`${u}: unexpected "AgentWire" near: ${ctx.replace(/\s+/g, ' ')}`);
   }
   if (/\b[0-9a-f]{64}\b/.test(t)) fail(`${u}: contains a 64-hex string (token-looking)`);

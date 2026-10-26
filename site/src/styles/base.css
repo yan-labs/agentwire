@@ -362,3 +362,10 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; }
 
 .pc-body.full { height: auto; max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-word; padding-bottom: 14px; }
 .pc-body.full::after { display: none; }
+
+/* headings from content: <em> is the accent highlight, never italic */
+h1 em, h2 em, h3 em { font-style: normal; color: var(--accent-ink); }
+.display { font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; font-weight: 650; }
+.lede { color: var(--ink-2); font-size: 14px; max-width: 64ch; }
+@media (max-width: 860px) { .sec > .frame[style*='padding:56px 40px'] { padding-inline: 20px !important; } }
+@media (max-width: 760px) { .cols-2[style] { grid-template-columns: minmax(0, 1fr) !important; } }

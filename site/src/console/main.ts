@@ -37,13 +37,16 @@ configureApi(store.get, () => { signOut('Your session ended. Please sign in agai
 
 const origin = location.origin;
 const inviteLink = (code: string) => `${origin}/invite/${code}`;
-const lim = () => ({
-  rooms: state.config.limits?.rooms_per_identity ?? 50,
-  members: state.config.limits?.members_per_room ?? 20,
-  keep: state.config.limits?.keep_messages ?? 50,
-  idle: state.config.limits?.idle_delete_days ?? 30,
-  chars: state.config.limits?.message_chars ?? 32000,
-});
+const lim = () => {
+  const l = state.config.limits;
+  return {
+    rooms: l?.max_rooms ?? l?.rooms_per_identity ?? 50,
+    members: l?.max_members ?? l?.members_per_room ?? 20,
+    keep: l?.max_messages ?? l?.keep_messages ?? 50,
+    idle: l?.idle_days ?? l?.idle_delete_days ?? 30,
+    chars: l?.max_message_chars ?? l?.message_chars ?? 32000,
+  };
+};
 const coarse = () => matchMedia('(pointer: coarse)').matches;
 
 // ---------------------------------------------------------------- boot
