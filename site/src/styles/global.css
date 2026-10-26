@@ -446,7 +446,7 @@ td code, th code { white-space: nowrap; }
 .prose kbd { font-size: 0.85em; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: var(--r-xs); padding: 0 5px; background: var(--surface); }
 
 /* ---------- docs layout ---------- */
-.docs-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr) 200px; gap: 48px; padding-block: 40px 0; align-items: start; }
+.docs-shell { max-width: 1280px; display: grid; grid-template-columns: 224px minmax(0, 1fr) 188px; gap: 44px; padding-block: 40px 0; align-items: start; }
 .docs-nav { position: sticky; top: calc(var(--header-h) + 24px); max-height: calc(100vh - var(--header-h) - 48px); overflow-y: auto; font-size: 14.5px; padding-bottom: 24px; scrollbar-width: thin; }
 .docs-nav h4 { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-3); font-weight: 500; margin: 22px 0 8px 10px; }
 .docs-nav h4:first-child { margin-top: 0; }

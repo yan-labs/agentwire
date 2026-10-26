@@ -144,3 +144,16 @@ if (tocLinks.length && 'IntersectionObserver' in window) {
   }, { rootMargin: '-72px 0px -70% 0px' });
   heads.forEach((h) => io.observe(h));
 }
+
+// ---- prose: scrollable tables, warning callouts
+document.querySelectorAll<HTMLTableElement>('.prose table').forEach((t) => {
+  if (t.parentElement?.classList.contains('table-wrap')) return;
+  const w = document.createElement('div');
+  w.className = 'table-wrap';
+  t.parentNode?.insertBefore(w, t);
+  w.append(t);
+});
+document.querySelectorAll<HTMLElement>('.prose blockquote').forEach((b) => {
+  const first = b.querySelector('strong')?.textContent?.toLowerCase() || '';
+  if (/^(warning|important|caution)/.test(first)) b.classList.add('warn');
+});

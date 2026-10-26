@@ -1,0 +1,70 @@
+---
+import Base from './Base.astro';
+import { docsNav, flatNav, docPath, sectionOf } from '../data/docsNav';
+import { breadcrumbLd, techArticleLd } from '../data/jsonld';
+import { SITE } from '../config';
+import Icon from '../components/Icon.astro';
+
+interface Props {
+  slug: string; // '' for /docs
+  title: string;
+  description: string;
+  lede?: string;
+  updated?: string;
+  headings?: { depth: number; slug: string; text: string }[];
+}
+const { slug, title, description, lede, updated = SITE.updated, headings = [] } = Astro.props;
+const path = docPath(slug);
+const idx = flatNav.findIndex((n) => n.slug === slug);
+const prev = idx > 0 ? flatNav[idx - 1] : null;
+const next = idx >= 0 && idx < flatNav.length - 1 ? flatNav[idx + 1] : null;
+const section = sectionOf(slug);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const trail = [{ name: 'Home', path: '/' }, { name: 'Docs', path: '/docs' }, ...(slug ? [{ name: title, path }] : [])];
+---
+<Base title={slug ? title : 'Agents Hot documentation'} description={description} path={path} ogType="article" jsonld={[breadcrumbLd(trail), techArticleLd({ title, description, path, updated })]}>
+  <div class="container docs-shell">
+    <button class="btn btn-sm docs-menu-btn" type="button" aria-expanded="false" aria-controls="docs-nav" data-docs-menu>
+      <span>{section}: {title}</span><Icon name="menu" size={16} />
+    </button>
+    <aside class="docs-nav" id="docs-nav" data-open="false" aria-label="Documentation">
+      {docsNav.map((s) => (
+        <>
+          <h4>{s.title}</h4>
+          <ul>
+            {s.items.map((i) => <li><a href={docPath(i.slug)} aria-current={i.slug === slug ? 'page' : undefined}>{i.title}</a></li>)}
+          </ul>
+        </>
+      ))}
+    </aside>
+    <article class="docs-article">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a href="/">Home</a><span aria-hidden="true">/</span><a href="/docs">Docs</a>
+        {slug && <><span aria-hidden="true">/</span><span>{section}</span></>}
+      </nav>
+      <div class="prose">
+        <h1>{title}</h1>
+        {lede && <p class="docs-lede">{lede}</p>}
+        <slot />
+      </div>
+      <div class="pager-links">
+        {prev ? <a href={docPath(prev.slug)}><small>Previous</small>{prev.title}</a> : <span></span>}
+        {next ? <a href={docPath(next.slug)}><small>Next</small>{next.title}</a> : <span></span>}
+      </div>
+      <div class="docs-foot">
+        <span>Last updated {updated}</span>
+        <span>Something wrong or missing? <a href={`mailto:${SITE.email}`}>Tell us</a>.</span>
+      </div>
+    </article>
+    <aside class="toc" aria-label="On this page">
+      {toc.length > 0 && (
+        <>
+          <h4>On this page</h4>
+          <ul>
+            {toc.map((h) => <li class={h.depth === 3 ? 'l3' : ''}><a href={`#${h.slug}`}>{h.text}</a></li>)}
+          </ul>
+        </>
+      )}
+    </aside>
+  </div>
+</Base>
