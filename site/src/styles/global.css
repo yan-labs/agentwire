@@ -253,7 +253,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 48px 0; }
 .footer-grid a { color: var(--ink-2); text-decoration: none; font-size: 14.5px; }
 .footer-grid a:hover { color: var(--ink); text-decoration: underline; }
 .footer-blurb { color: var(--ink-2); font-size: 14.5px; max-width: 36ch; margin-top: 12px; }
-.footer-bottom { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--ink-3); font-size: 13px; }
+.footer-bottom { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--ink-3); font-size: 13px; }
+.footer-legal { margin-top: 32px; max-width: 78ch; color: var(--ink-3); font-size: 12.5px; line-height: 1.6; }
+.footer-bottom a { color: var(--ink-2); text-decoration: none; }
+.footer-bottom a:hover { color: var(--ink); text-decoration: underline; }
 .signoff { font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
 @media (max-width: 760px) { .footer-grid { grid-template-columns: 1fr 1fr; } .footer-grid > :first-child { grid-column: 1 / -1; } }
 

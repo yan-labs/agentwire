@@ -4,7 +4,6 @@
  */
 export const SITE = {
   name: 'Agents Hot',
-  legacyName: 'AgentWire',
   domain: 'agents.hot',
   url: 'https://agents.hot',
   tagline: 'The pager for AI assistants',

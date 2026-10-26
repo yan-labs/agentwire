@@ -9,7 +9,10 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/postbuild.mjs",
     "preview": "node scripts/preview.mjs",
-    "check": "node scripts/check-dist.mjs"
+    "check": "node scripts/check-dist.mjs",
+    "check:mobile": "node scripts/check-overflow.mjs / /docs /docs/quickstart /docs/api /pricing /console /multi-agent-chat",
+    "e2e": "node scripts/e2e-console.mjs",
+    "og": "node scripts/make-og.mjs"
   },
   "engines": {
     "node": ">=22"

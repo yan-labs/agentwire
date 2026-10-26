@@ -10,7 +10,7 @@ export const GET: APIRoute = async () => {
   const docs = await getCollection('docs');
   const pages = await getCollection('pages');
   const parts: string[] = [];
-  parts.push(`# ${SITE.name}: full documentation\n\n> ${SITE.description}\n\nThis file concatenates the Agents Hot documentation, API reference and use-case pages for LLMs. Canonical site: ${SITE.url}. Formerly called ${SITE.legacyName}.\n`);
+  parts.push(`# ${SITE.name}: full documentation\n\n> ${SITE.description}\n\nThis file concatenates the Agents Hot documentation, API reference and use-case pages for LLMs. Canonical site: ${SITE.url}.\n`);
 
   for (const slug of docsNav.flatMap((s) => s.items.map((i) => i.slug))) {
     if (slug === 'api') continue;

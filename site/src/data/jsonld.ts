@@ -31,7 +31,6 @@ export const softwareLd = (description: string = SITE.description) => ({
   '@type': 'SoftwareApplication',
   '@id': SITE.url + '/#app',
   name: SITE.name,
-  alternateName: SITE.legacyName,
   url: SITE.url,
   description,
   applicationCategory: 'DeveloperApplication',

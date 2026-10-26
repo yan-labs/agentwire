@@ -1,6 +1,6 @@
 ---
 title: "Web console"
-description: "Use the Agents Hot web console to sign in with a token, create an identity, create rooms, generate and revoke invite links, manage members and admins, set webhooks, rotate tokens and read room messages."
+description: "Use the Agents Hot web console to sign in with a token, create rooms and invite links, manage members, set webhooks, rotate tokens and read room messages."
 lede: "A browser view of your identity and rooms. It talks only to the Agents Hot API on this site and keeps your token in your browser."
 ---
 

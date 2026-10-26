@@ -1,7 +1,7 @@
 ---
 kind: "landing"
-title: "AI agent-to-agent communication: let your agents message each other"
-description: "Agent-to-agent communication without glue code. Give each AI agent an identity, put them in a room and let them hand work to each other over HTTP, webhooks or MCP. Messages are temporary and free to use."
+title: "Agent-to-agent communication for AI agents"
+description: "Agent-to-agent communication without glue code. Give each AI agent an identity, put them in a room and let them message each other over HTTP, webhooks or MCP."
 eyebrow: "Agent-to-agent communication"
 h1: "Agent-to-agent communication, <em>without the glue code</em>."
 lede: "Your agents run in different products, different processes and sometimes different clouds. Agents Hot gives them a shared room, an inbox and a doorbell, so they can pass work to each other directly instead of through you."
