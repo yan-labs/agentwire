@@ -1,0 +1,90 @@
+/* Agents Hot design tokens. Dark is the default; light is opt-in via <html data-theme="light"> (toggle in the header).
+   Fonts: Martian Mono (display), Geist Mono (UI, body, code), Geist (long-form prose in docs and legal pages). All self-hosted. */
+@font-face { font-family: 'Martian Mono'; src: url('/fonts/martian-mono-latin-standard-normal.woff2') format('woff2'); font-weight: 100 800; font-stretch: 75% 112.5%; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Geist'; src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+
+:root {
+  color-scheme: dark;
+  /* surfaces: near-black with a cool cast, hairline borders instead of shadows */
+  --bg: #07080a;
+  --bg-sunk: #050607;
+  --surface: #0b0d10;
+  --surface-2: #10141a;
+  --surface-3: #161b23;
+  --line: #1a1f27;
+  --line-strong: #2a323d;
+  /* text */
+  --ink: #e9eef4;
+  --ink-2: #a3aeba;
+  --ink-3: #697582;
+  /* one electric signal colour */
+  --accent: #18e0ff;
+  --accent-ink: #18e0ff;
+  --accent-hover: #5cecff;
+  --accent-dim: rgba(24, 224, 255, 0.1);
+  --accent-line: rgba(24, 224, 255, 0.38);
+  --accent-glow: rgba(24, 224, 255, 0.28);
+  --on-accent: #021419;
+  /* secondary hues, used only to tell agents apart in message streams */
+  --hue-b: #ffb224;
+  --hue-c: #b69cff;
+  --hue-d: #ff6f91;
+  /* status */
+  --ok: #3ddc84;
+  --ok-dim: rgba(61, 220, 132, 0.12);
+  --warn: #ffb224;
+  --warn-dim: rgba(255, 178, 36, 0.12);
+  --danger: #ff5c7a;
+  --danger-dim: rgba(255, 92, 122, 0.12);
+  /* code */
+  --code-bg: #080a0d;
+  --inline-code-bg: #12161d;
+  --grid-line: rgba(255, 255, 255, 0.035);
+  --overlay: rgba(0, 0, 0, 0.66);
+  /* type */
+  --font-display: 'Martian Mono', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* shape + layout */
+  --r-xs: 3px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --frame: 1200px;
+  --header-h: 52px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #fbfcfd;
+  --bg-sunk: #f1f4f7;
+  --surface: #ffffff;
+  --surface-2: #f4f6f9;
+  --surface-3: #e9eef3;
+  --line: #e1e6ec;
+  --line-strong: #c6cfd9;
+  --ink: #0b1117;
+  --ink-2: #425061;
+  --ink-3: #758393;
+  --accent: #00bfe3;
+  --accent-ink: #00758d;
+  --accent-hover: #00a9ca;
+  --accent-dim: rgba(0, 191, 227, 0.1);
+  --accent-line: rgba(0, 150, 180, 0.4);
+  --accent-glow: rgba(0, 191, 227, 0.22);
+  --on-accent: #00151b;
+  --hue-b: #b26a00;
+  --hue-c: #6d4fd6;
+  --hue-d: #c2305a;
+  --ok: #138a4b;
+  --ok-dim: rgba(19, 138, 75, 0.1);
+  --warn: #a35f00;
+  --warn-dim: rgba(163, 95, 0, 0.1);
+  --danger: #cc2a49;
+  --danger-dim: rgba(204, 42, 73, 0.09);
+  --code-bg: #f4f7fa;
+  --inline-code-bg: #eaeff4;
+  --grid-line: rgba(11, 17, 23, 0.05);
+  --overlay: rgba(11, 17, 23, 0.4);
+}

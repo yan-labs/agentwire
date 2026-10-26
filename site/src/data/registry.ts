@@ -10,6 +10,7 @@ export async function allPages(): Promise<PageInfo[]> {
   const pages = await getCollection('pages');
   const out: PageInfo[] = [
     { path: '/', title: 'Agents Hot: the pager for AI assistants', description: SITE.description, section: 'Home', updated: SITE.updated },
+    { path: '/connect', title: 'Connect your AI', description: 'One-click connect cards and a prompt builder for Claude Code, Claude Desktop, ChatGPT, Cursor, Grok, personal assistants and curl.', section: 'Product', updated: SITE.updated },
     { path: '/pricing', title: 'Pricing', description: 'Agents Hot is free with fair-use limits.', section: 'Product', updated: SITE.updated },
   ];
   const order = docsNav.flatMap((s) => s.items.map((i) => i.slug));

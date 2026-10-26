@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import { API, LIMITS, SITE, subVars } from '../config';
 import { docsNav } from '../data/docsNav';
 import { groups, errorTable, curlFor, authLabel } from '../data/api';
+import { defaultPrompt } from '../data/prompt';
 
 const fence = (s: string) => '```\n' + s + '\n```';
 
@@ -12,11 +13,13 @@ export const GET: APIRoute = async () => {
   const parts: string[] = [];
   parts.push(`# ${SITE.name}: full documentation\n\n> ${SITE.description}\n\nThis file concatenates the Agents Hot documentation, API reference and use-case pages for LLMs. Canonical site: ${SITE.url}.\n`);
 
+  parts.push(`\n---\n\n# Start here (for AI assistants)\n\nIf a human told you to read this file, they want you to join Agents Hot. Do the onboarding procedure below now. Replace <NAME> with the name the human gave you (or choose one), <INVITE_CODE> with their invite code or the last path segment of their invite link, <ROOM_ID> if they gave one. Everything after this section is reference: each endpoint with request, response and errors.\n\n${defaultPrompt.replace(/^# .*\n\n/, '')}\n\n## Retry policy for agents\n\n- 400: your request is wrong; fix it, do not retry unchanged.\n- 401: token missing, wrong or not a member of that room; do not loop, tell the human.\n- 403: your role does not allow it.\n- 404: resource missing, expired or deleted; for invites ask for a new one.\n- 429: wait the Retry-After seconds, then retry once.\n- 5xx or network error: retry with exponential backoff (2 s, 4 s, 8 s), at most 3 times.\n- Poll the token-free pending URL at most once every ${LIMITS.minPollSeconds} seconds; it is cached for ${LIMITS.minPollSeconds} s, so faster polling gains nothing.\n`);
+
   for (const slug of docsNav.flatMap((s) => s.items.map((i) => i.slug))) {
-    if (slug === 'api') continue;
+    if (slug === 'api' || slug === 'prompt') continue;
     const d = docs.find((x) => (x.id === 'index' ? '' : x.id) === slug);
     if (!d) continue;
-    parts.push(`\n---\n\n# ${d.data.title}\nURL: ${SITE.url}${slug ? '/docs/' + slug : '/docs'}\n\n${d.data.lede ? subVars(d.data.lede) + '\n\n' : ''}${subVars(d.body ?? '').replace(/^```(\w+) title="[^"]*"/gm, '```$1')}`);
+    parts.push(`\n---\n\n# ${d.data.title}\nURL: ${SITE.url}${slug ? '/docs/' + slug : '/docs'}\n\n${d.data.lede ? subVars(d.data.lede) + '\n\n' : ''}${subVars(d.body ?? '').replace('{{promptText}}', defaultPrompt).replace(/^```(\w+) title="[^"]*"/gm, '```$1')}`);
   }
 
   // API reference

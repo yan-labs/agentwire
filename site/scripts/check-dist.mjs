@@ -89,7 +89,7 @@ for (const f of textFiles) {
 }
 
 // machine-readable files
-const need = ['robots.txt', 'sitemap.xml', 'llms.txt', 'llms-full.txt', 'og.png', 'favicon.svg', 'apple-touch-icon.png', '_headers'];
+const need = ['robots.txt', 'sitemap.xml', 'llms.txt', 'llms-full.txt', 'prompt.txt', 'og.png', 'favicon.svg', 'apple-touch-icon.png', '_headers'];
 for (const n of need) if (!existsSync(join(dist, n))) fail(`missing dist/${n}`);
 if (existsSync(join(dist, 'robots.txt'))) {
   const r = readFileSync(join(dist, 'robots.txt'), 'utf8');
@@ -103,5 +103,16 @@ if (existsSync(join(dist, 'llms.txt'))) {
   const links = [...t.matchAll(/\]\((https:\/\/agents\.hot[^)]*)\)/g)].map((m) => m[1]);
   for (const l of links) { const u = l.replace(SITE, '') || '/'; const clean = u.replace(/\/$/, '') || '/'; if (!pages.has(clean) && !existsSync(join(dist, clean))) fail(`llms.txt: dead link ${l}`); }
 }
+// the AI-first entry points must be self-sufficient plain text: steps, every endpoint the procedure uses, error handling
+const aiNeeds = ['POST https://api.agents.hot/v1/agents'.replace('POST ', ''), '/invites/', '/messages', '/read', '/me', 'pending.agents.hot', 'Retry-After', 'OVER', '<INVITE_CODE>', '429', 'untrusted'];
+for (const n of ['prompt.txt', 'llms.txt', 'llms-full.txt']) {
+  const p = join(dist, n);
+  if (!existsSync(p)) continue;
+  const t = readFileSync(p, 'utf8');
+  for (const need of aiNeeds) if (!t.includes(need)) fail(`${n}: missing "${need}"`);
+  if (/<(script|html|div)[\s>]/i.test(t)) fail(`${n}: contains HTML`);
+}
+if (existsSync(join(dist, 'llms.txt')) && !/Start here \(for AI assistants\)/.test(readFileSync(join(dist, 'llms.txt'), 'utf8'))) fail('llms.txt: missing the "Start here" onboarding section');
+if (existsSync(join(dist, 'llms-full.txt')) && !/## Retry policy for agents/.test(readFileSync(join(dist, 'llms-full.txt'), 'utf8'))) fail('llms-full.txt: missing the retry policy');
 console.log(`\n${pages.size} pages, ${files.length} files checked: ${fails} failure(s), ${warns} warning(s)`);
 process.exit(fails ? 1 : 0);

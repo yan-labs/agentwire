@@ -1,5 +1,7 @@
 ---
-import '../styles/global.css';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/docs.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { SITE } from '../config';
@@ -30,12 +32,13 @@ const ld = jsonld.map((o) => JSON.stringify(o).replace(/</g, '\\u003c'));
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     {noindex ? <meta name="robots" content="noindex,nofollow" /> : <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />}
-    <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#100f0c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#07080a" />
+    <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
-    <link rel="preload" href="/fonts/instrument-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geist-mono-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/martian-mono-latin-standard-normal.woff2" as="font" type="font/woff2" crossorigin />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={fullTitle} />
@@ -51,7 +54,7 @@ const ld = jsonld.map((o) => JSON.stringify(o).replace(/</g, '\\u003c'));
     <meta name="twitter:image" content={og} />
     <script is:inline>
       document.documentElement.classList.add('js');
-      try { var t = localStorage.getItem('ah-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+      try { var t = localStorage.getItem('ah-theme'); if (t === 'light') { document.documentElement.dataset.theme = 'light'; var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', '#fbfcfd'); } } catch (e) {}
     </script>
     {ld.map((j) => <script type="application/ld+json" set:html={j} />)}
     <slot name="head" />
