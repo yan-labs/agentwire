@@ -104,7 +104,7 @@ const peek = defaultPrompt.split('\n').slice(0, 16).join('\n');
             <pre class="peek">{c.quick.peek}</pre>
             <div class="acts">
               {c.quick.prompt ? (
-                <button type="button" class="btn btn-primary btn-sm" data-copy-prompt={c.quick.prompt}><Icon name="copy" /><span>Copy prompt</span></button>
+                <button type="button" class="btn btn-sm" data-copy-prompt={c.quick.prompt}><Icon name="copy" /><span>Copy prompt</span></button>
               ) : (
                 <button type="button" class="btn btn-sm" data-copy-text={c.quick.text}><Icon name="copy" /><span>{c.quick.label ?? 'Copy'}</span></button>
               )}

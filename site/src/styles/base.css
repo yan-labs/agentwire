@@ -209,7 +209,8 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 /* ---------- home: hero stage ---------- */
 .hero { position: relative; overflow: clip; margin-top: calc(-1 * var(--header-h)); padding-top: var(--header-h); isolation: isolate; }
 .hero-bg { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
-.hero-bg picture, .hero-bg img { position: absolute; left: 50%; bottom: -70px; width: max(100%, 1500px); height: auto; max-width: none; transform: translateX(-50%); }
+.hero-bg picture { position: absolute; left: 0; right: 0; bottom: -70px; display: block; width: 100%; height: max(844px, 56.25vw); }
+.hero-bg img { display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; object-position: 50% 100%; }
 .hero-bg img { -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 45%); mask-image: linear-gradient(180deg, transparent 0%, #000 45%); }
 .hero-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(127, 216, 255, 0.07), transparent 70%), linear-gradient(180deg, var(--bg) 0%, transparent 18%, transparent 90%, var(--bg) 100%); }
 .hero-copy { position: relative; z-index: 2; max-width: 1080px; margin-inline: auto; padding: clamp(72px, 13vh, 132px) 24px 0; display: grid; justify-items: center; text-align: center; gap: 28px; }
@@ -254,7 +255,7 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 .stage-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); }
 .js .stage-status { opacity: 0; transition: opacity 0.8s var(--ease); }
 .js .stage-status.show { opacity: 1; }
-@media (max-width: 999px) { .stage { height: 520px; margin-top: 16px; } .stage-status { bottom: 2%; } }
+@media (max-width: 999px) { .stage { height: 520px; margin-top: 16px; } .stage-status { bottom: 2%; max-width: calc(100% - 24px); padding: 0 12px; gap: 8px; font-size: 10.5px; letter-spacing: 0; } }
 @media (max-width: 760px) { .bubble { padding: 11px 14px 12px; } .bubble p { font-size: 14px; } .orb-name { display: none; } }
 @media (prefers-reduced-motion: reduce) { .orb::before { animation: none; } .js .bubble, .js .stage-status { opacity: 1; transform: none; transition: none; } .js .bubble.gone { opacity: 0.4; filter: none; } }
 
@@ -290,6 +291,8 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 .qcard::after { content: ''; position: absolute; inset: 0; background: radial-gradient(400px circle at var(--mx, 50%) var(--my, -40%), rgba(127, 216, 255, 0.09), transparent 45%); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .qcard:hover { border-color: var(--line-strong); transform: translateY(-3px); }
 .qcard:hover::after { opacity: 1; }
+.qcard .acts .btn { transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s; }
+.qcard:hover .acts .btn, .qcard:focus-within .acts .btn { background: var(--hot); color: var(--on-hot); border-color: transparent; box-shadow: 0 10px 30px -12px rgba(127, 216, 255, 0.55); }
 .qcard-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .mono-badge { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.02em; color: var(--ink); background: radial-gradient(circle at 30% 25%, rgba(127, 216, 255, 0.35), transparent 60%), radial-gradient(circle at 80% 90%, rgba(255, 176, 112, 0.28), transparent 60%), var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
 :root[data-theme='light'] .mono-badge { background: radial-gradient(circle at 30% 25%, rgba(42, 169, 230, 0.25), transparent 60%), radial-gradient(circle at 80% 90%, rgba(240, 138, 60, 0.2), transparent 60%), #fff; }
@@ -350,7 +353,7 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 .dual .card h3 { font-size: 1.5rem; letter-spacing: -0.035em; margin: 0; }
 .constellation { position: absolute; inset: -140px -10% -60px; z-index: -1; pointer-events: none; }
 .constellation img { width: 100%; height: 100%; object-fit: cover; opacity: 0.55; -webkit-mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, #000 30%, transparent 100%); mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, #000 30%, transparent 100%); }
-@media (max-width: 760px) { .dual { grid-template-columns: minmax(0, 1fr); } .dual .card { padding: 24px; } }
+@media (max-width: 760px) { .dual { grid-template-columns: minmax(0, 1fr); } .dual .card { padding: 24px; } .constellation { inset: -100px 0 -40px; } }
 
 /* ---------- FAQ ---------- */
 .faq { display: grid; gap: 0; border-top: 1px solid var(--line); }
@@ -424,7 +427,7 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 .page-hero .frame { padding-block: 112px 56px; }
 .page-hero h1 { font-size: clamp(2.6rem, 6.4vw, 5rem); font-weight: 530; letter-spacing: -0.055em; line-height: 0.98; }
 .page-hero .lede { color: var(--ink-2); max-width: 46ch; font-size: clamp(16.5px, 1.5vw, 19px); }
-@media (max-width: 860px) { .page-hero .frame { padding-block: 64px 32px; } .page-hero .ph-art { width: 120%; right: -40%; top: -4%; opacity: 0.5; } }
+@media (max-width: 860px) { .page-hero .frame { padding-block: 64px 32px; } .page-hero .ph-art { width: 80%; right: 0; top: -4%; opacity: 0.5; } .page-hero .ph-art img { height: 75vw; object-fit: cover; object-position: 0 50%; } }
 .callout { padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--glass-flat); color: var(--ink-2); font-size: 14.5px; box-shadow: inset 3px 0 0 var(--accent); }
 .callout strong { color: var(--ink); }
 .related { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
