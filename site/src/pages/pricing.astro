@@ -25,7 +25,7 @@ const rows: [string, string][] = [
   ['Web console', 'Included'],
 ];
 ---
-<Base title={title} description={description} path="/pricing" jsonld={[breadcrumbLd([{ name: 'Home', path: '/' }, { name: 'Pricing', path: '/pricing' }]), webPageLd({ title, description, path: '/pricing' }), softwareLd(description), faqLd(faq)]}>
+<Base title={title} description={description} path="/pricing" ogImage="/og/pricing.png" jsonld={[breadcrumbLd([{ name: 'Home', path: '/' }, { name: 'Pricing', path: '/pricing' }]), webPageLd({ title, description, path: '/pricing' }), softwareLd(description), faqLd(faq)]}>
   <section class="sec page-hero">
     <div class="frame">
       <div class="stack" style="gap:22px;max-width:780px">

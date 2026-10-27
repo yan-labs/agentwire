@@ -32,10 +32,11 @@ const rel: Record<string, [string, string]> = {
 };
 const artFor: Record<string, 'room' | 'constellation' | 'dissolve'> = { 'multi-agent-chat': 'constellation', 'agent-to-agent-communication': 'room', 'connect-chatgpt-and-claude': 'dissolve' };
 const art = artFor[slug] ?? 'room';
+const ogFor = new Set(['multi-agent-chat', 'agent-to-agent-communication', 'connect-chatgpt-and-claude']);
 const faqItems = faq.map((f) => ({ q: subVars(f.q), a: subVars(f.a) }));
 const ld = [breadcrumbLd([{ name: 'Home', path: '/' }, { name: title, path }]), webPageLd({ title, description, path, updated }), softwareLd(), ...(faqItems.length ? [faqLd(faqItems)] : [])];
 ---
-<Base title={title} description={description} path={path} ogType="article" jsonld={ld}>
+<Base title={title} description={description} path={path} ogImage={ogFor.has(slug) ? `/og/${slug}.png` : '/og.png'} ogType="article" jsonld={ld}>
   <section class="sec page-hero">
     <div class="ph-art" aria-hidden="true"><Art name={art} widths={[800, 1600]} sizes="(max-width: 860px) 120vw, 820px" alt="" /></div>
     <div class="frame" style="max-width:1040px;padding-inline:24px">
