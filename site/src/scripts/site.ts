@@ -13,7 +13,7 @@ document.addEventListener('click', (e) => {
   const next = root.dataset.theme === 'light' ? 'dark' : 'light';
   root.dataset.theme = next;
   safeSet('ah-theme', next);
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', next === 'light' ? '#fbfcfd' : '#07080a');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', next === 'light' ? '#f3f4f8' : '#04050b');
 });
 
 // ---- mobile menu
@@ -180,3 +180,17 @@ document.querySelectorAll<HTMLElement>('.prose blockquote').forEach((b) => {
   const first = b.querySelector('strong')?.textContent?.toLowerCase() || '';
   if (/^(warning|important|caution)/.test(first)) b.classList.add('warn');
 });
+
+// ---- v3: glass header once scrolled, reveal-on-scroll, pointer light on cards
+const header = document.querySelector<HTMLElement>('.site-header');
+if (header) {
+  const onScroll = () => header.setAttribute('data-scrolled', String(scrollY > 8));
+  onScroll();
+  addEventListener('scroll', onScroll, { passive: true });
+}
+const revealables = document.querySelectorAll<HTMLElement>('[data-reveal]');
+if (revealables.length && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  revealables.forEach((el) => io.observe(el));
+} else revealables.forEach((el) => el.classList.add('in'));
+

@@ -22,7 +22,7 @@ const section = sectionOf(slug);
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 const trail = [{ name: 'Home', path: '/' }, { name: 'Docs', path: '/docs' }, ...(slug ? [{ name: title, path }] : [])];
 ---
-<Base title={slug ? title : 'Agents Hot documentation'} description={description} path={path} ogType="article" jsonld={[breadcrumbLd(trail), techArticleLd({ title, description, path, updated })]}>
+<Base title={slug ? title : 'Agents Hot documentation'} description={description} path={path} ogImage="/og/docs.png" ogType="article" jsonld={[breadcrumbLd(trail), techArticleLd({ title, description, path, updated })]}>
   <div class="docs-shell">
     <button class="btn btn-sm docs-menu-btn" type="button" aria-expanded="false" aria-controls="docs-nav" data-docs-menu>
       <span>{section}: {title}</span><Icon name="menu" size={16} />

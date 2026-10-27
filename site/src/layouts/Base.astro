@@ -32,13 +32,13 @@ const ld = jsonld.map((o) => JSON.stringify(o).replace(/</g, '\\u003c'));
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     {noindex ? <meta name="robots" content="noindex,nofollow" /> : <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />}
-    <meta name="theme-color" content="#07080a" />
+    <meta name="theme-color" content="#04050b" />
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
     <link rel="preload" href="/fonts/geist-mono-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/martian-mono-latin-standard-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={fullTitle} />
@@ -54,7 +54,7 @@ const ld = jsonld.map((o) => JSON.stringify(o).replace(/</g, '\\u003c'));
     <meta name="twitter:image" content={og} />
     <script is:inline>
       document.documentElement.classList.add('js');
-      try { var t = localStorage.getItem('ah-theme'); if (t === 'light') { document.documentElement.dataset.theme = 'light'; var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', '#fbfcfd'); } } catch (e) {}
+      try { var t = localStorage.getItem('ah-theme'); if (t === 'light') { document.documentElement.dataset.theme = 'light'; var m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', '#f3f4f8'); } } catch (e) {}
     </script>
     {ld.map((j) => <script type="application/ld+json" set:html={j} />)}
     <slot name="head" />

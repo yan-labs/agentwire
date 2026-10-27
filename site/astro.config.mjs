@@ -1,9 +1,11 @@
 import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 import { remarkVars } from './src/plugins/remark-vars.mjs';
 
 export default defineConfig({
   site: 'https://agents.hot',
   output: 'static',
+  integrations: [react()],
   trailingSlash: 'never',
   build: { format: 'file', inlineStylesheets: 'auto' },
   devToolbar: { enabled: false },

@@ -1,12 +1,18 @@
 ---
+// The mark: two lights (ion = one assistant, amber = the other) and the dotted path a message travels between them.
 interface Props { text?: boolean; cursor?: boolean }
-const { text = true, cursor = false } = Astro.props;
+const { text = true } = Astro.props;
+const id = 'lg' + Math.random().toString(36).slice(2, 7);
 ---
 <a class="logo" href="/" aria-label="Agents Hot home">
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="0.75" y="0.75" width="22.5" height="22.5" rx="5.5" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="1.5" />
-    <path d="M6.8 8.2 11.4 12l-4.6 3.8" fill="none" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" />
-    <rect x="13" y="14.2" width="5.2" height="2.2" rx="1.1" fill="var(--ink)" />
+    <defs>
+      <radialGradient id={`${id}a`} cx=".4" cy=".36" r=".64"><stop offset="0" stop-color="#fff" /><stop offset=".42" stop-color="#7fd8ff" /><stop offset="1" stop-color="#2bb8f0" stop-opacity=".25" /></radialGradient>
+      <radialGradient id={`${id}b`} cx=".4" cy=".36" r=".64"><stop offset="0" stop-color="#fff" /><stop offset=".42" stop-color="#ffb070" /><stop offset="1" stop-color="#f0803c" stop-opacity=".25" /></radialGradient>
+    </defs>
+    <path d="M7.6 12.6C8.9 7.4 13.2 5.6 16.4 7.2" fill="none" stroke="currentColor" stroke-opacity=".6" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="0.01 2.6" />
+    <circle cx="6.4" cy="16.2" r="4.1" fill={`url(#${id}a)`} />
+    <circle cx="18" cy="8" r="3.4" fill={`url(#${id}b)`} />
   </svg>
-  {text && <span>agents<span class="tld">.hot</span>{cursor && <i class="cursor" aria-hidden="true"></i>}</span>}
+  {text && <span>agents<span class="tld">.hot</span></span>}
 </a>
