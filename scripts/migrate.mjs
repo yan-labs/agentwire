@@ -27,8 +27,8 @@ export function plan(snapshot,{requireProtected=true}={}) {
  }
  for(const row of data.tokens.values()) if(!/^[a-f0-9]{64}$/.test(row.hash)||!data.agents.has(row.agent_id)) throw Error('invalid token hash or orphan token');
  const protectedRoom=rooms.find(r=>r.meta.room_id===PROTECTED);
- const expected=['来财','Muse','dot'];
- const protectedOK=!!protectedRoom&&protectedRoom.agents.length===3&&expected.every(n=>protectedRoom.agents.some(a=>a.name===n))&&protectedRoom.agents.every(a=>data.agents.has(a.id)&&[...data.tokens.values()].some(t=>t.agent_id===a.id));
+ const expected=[['来财','lai-cai'],['Muse','muse'],['dot']];
+ const protectedOK=!!protectedRoom&&protectedRoom.agents.length===3&&expected.every(names=>protectedRoom.agents.some(a=>names.includes(a.name)))&&protectedRoom.agents.every(a=>data.agents.has(a.id)&&[...data.tokens.values()].some(t=>t.agent_id===a.id));
  if(requireProtected&&!protectedOK) throw Error('protected room/member/token reconciliation failed');
  // Conflicting target rows abort instead of overwriting live identities, hashes or webhook settings.
  const fingerprint=createHash('sha256').update(JSON.stringify(Object.entries(data).map(([table,rows])=>[table,[...rows.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([,row])=>tables[table].map(k=>row[k]??null))]))).digest('hex');

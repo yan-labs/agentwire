@@ -149,7 +149,8 @@
     "WAF_API_EXPRESSION": "((http.host eq \"api.agents.hot\" or http.host eq \"pending.agents.hot\" or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\")) and not starts_with(http.request.uri.path, \"/internal/billing-\")",
     "USAGE_FAILURE_THRESHOLD": "3",
     "BUDGET_LIMITS": "{\"workers_cpu_ms\":40000000}",
-    "BILLING_CYCLE_DAY": "9"
+    "BILLING_CYCLE_DAY": "9",
+    "PROTECTED_AGENT_IDS": "agent_947dceabbb2c3b97ed63806a,agent_1614037dc1fb09571afc63ab,agent_cb80e63eda29b639d007a74c"
   },
   "preview_urls": false,
   "r2_buckets": [

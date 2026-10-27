@@ -48,6 +48,7 @@ export interface Env {
   IDLE_DAYS?: string;
   WARNING_DAYS?: string;
   EXEMPT_ROOMS?: string;
+  PROTECTED_AGENT_IDS?: string;
   WEBHOOK_MAX_FAILURES?: string;
   WEBHOOK_RETRY_SECONDS?: string;
   MIGRATION_ENABLED?: string;
@@ -945,7 +946,9 @@ export class Room extends DurableObject<Env> {
     let protected_members:string[]=[];
     if(this.exempt()) {
       const pinned=this.kvGet('protected_members');
-      protected_members=pinned?JSON.parse(pinned):this.listAgents().filter(a=>['来财','Muse','dot'].includes(a.name)).map(a=>a.id);
+      const configured=(this.env.PROTECTED_AGENT_IDS||'').split(',').filter(Boolean);
+      protected_members=pinned?JSON.parse(pinned):configured.length?configured:this.listAgents().filter(a=>['来财','lai-cai','Muse','muse','dot'].includes(a.name)).map(a=>a.id);
+      if(configured.length&&(configured.length!==3||new Set(configured).size!==3||configured.some(id=>!this.listAgents().some(a=>a.id===id)))) throw Error('protected member configuration mismatch');
       if(!pinned&&protected_members.length===3) this.kvSet('protected_members',JSON.stringify(protected_members));
     }
     return {members,tokens,protected_members};
