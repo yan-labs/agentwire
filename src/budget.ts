@@ -55,16 +55,16 @@ export function budgetError(state:BudgetState,method:string,path:string):Respons
  return code?Response.json({error:'Agents Hot is conserving its included monthly usage; try next month or use the public CDN unread feed.',code,level:state.level},{status:503,headers:{'retry-after':'600','cache-control':'no-store'}}):null;
 }
 // Account-wide queries: aliases normalize the documented units, not per-script quotas.
-export const USAGE_QUERY = `query AgentsHotUsage($accountTag: string!, $start: Time!, $end: Time!, $startDate: Date!, $endDate: Date!, $storageStart: Time!) {
+export const USAGE_QUERY = `query AgentsHotUsage($accountTag: string!, $start: Time!, $end: Time!, $startDate: Date!, $endDate: Date!, $storageStart: Time!, $storageDate: Date!) {
  viewer { accounts(filter: {accountTag: $accountTag}) {
   workers: workersInvocationsAdaptive(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests cpuTimeUs } }
   invocations: durableObjectsInvocationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } }
   periodic: durableObjectsPeriodicGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { duration rowsRead rowsWritten } }
-  doStorage: durableObjectsSqlStorageGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { storedBytes } dimensions { namespaceId } }
+  doStorage: durableObjectsSqlStorageGroups(limit: 10000, filter: {date_geq: $storageDate, date_leq: $endDate}) { max { storedBytes } dimensions { namespaceId } }
   d1: d1AnalyticsAdaptiveGroups(limit: 10000, filter: {date_geq: $startDate, date_leq: $endDate}) { sum { rowsRead rowsWritten } }
-  d1Storage: d1StorageAdaptiveGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { databaseSizeBytes } dimensions { databaseId } }
+  d1Storage: d1StorageAdaptiveGroups(limit: 10000, filter: {date_geq: $storageDate, date_leq: $endDate}) { max { databaseSizeBytes } dimensions { databaseId } }
   kv: kvOperationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } dimensions { actionType } }
-  kvStorage: kvStorageAdaptiveGroups(limit: 10000, filter: {date_geq: $endDate, date_leq: $endDate}) { max { byteCount } dimensions { namespaceId } }
+  kvStorage: kvStorageAdaptiveGroups(limit: 10000, filter: {date_geq: $storageDate, date_leq: $endDate}) { max { byteCount } dimensions { namespaceId } }
   r2: r2OperationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) { sum { requests } dimensions { actionType } }
   r2Storage: r2StorageAdaptiveGroups(limit: 10000, filter: {datetime_geq: $storageStart, datetime_leq: $end}) { max { payloadSize metadataSize } dimensions { bucketName } }
  } }
@@ -133,7 +133,7 @@ export async function runBudgetGuard(env:Env,fetcher:typeof fetch=fetch,now=new 
  try {
   if(!env.CF_ANALYTICS_TOKEN||!env.CF_ACCOUNT_ID) throw Error('missing analytics configuration');
   const first=new Date(billingWindow(env,now).start).toISOString();
-  const res=await fetcher('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{authorization:`Bearer ${env.CF_ANALYTICS_TOKEN}`,'content-type':'application/json'},body:JSON.stringify({query:env.USAGE_QUERY||USAGE_QUERY,variables:{accountTag:env.CF_ACCOUNT_ID,start:first,end:now.toISOString(),startDate:first.slice(0,10),endDate:now.toISOString().slice(0,10),storageStart:now.toISOString().slice(0,10)+'T00:00:00.000Z'}}),signal:AbortSignal.timeout(5000)});
+  const res=await fetcher('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{authorization:`Bearer ${env.CF_ANALYTICS_TOKEN}`,'content-type':'application/json'},body:JSON.stringify({query:env.USAGE_QUERY||USAGE_QUERY,variables:{accountTag:env.CF_ACCOUNT_ID,start:first,end:now.toISOString(),startDate:first.slice(0,10),endDate:now.toISOString().slice(0,10),storageStart:new Date(now.getTime()-86400000).toISOString(),storageDate:new Date(now.getTime()-86400000).toISOString().slice(0,10)}}),signal:AbortSignal.timeout(5000)});
   if(!res.ok) throw Error('analytics HTTP failure');
   const data=await res.json() as {errors?:unknown;data?:{viewer?:{accounts?:Record<string,Rows>[]}}};
   if(data.errors||!data.data?.viewer?.accounts?.[0]) throw Error('analytics invalid response');
