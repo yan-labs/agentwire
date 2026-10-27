@@ -1,0 +1,19 @@
+---
+// Generated key art (see DESIGN.md "Imagery"). Each image ships as AVIF + WebP at the listed widths in /public/images.
+interface Props { name: keyof typeof ART; widths: number[]; sizes: string; alt: string; eager?: boolean; class?: string }
+const ART = {
+  'hero-horizon': [1920, 1080],
+  'horizon-bright': [1600, 900],
+  dissolve: [1600, 1000],
+  room: [1600, 1000],
+  constellation: [1600, 900],
+} as const;
+const { name, widths, sizes, alt, eager = false, class: cls } = Astro.props;
+const [W, H] = ART[name];
+const set = (ext: string) => widths.map((w) => `/images/${name}-${w}.${ext} ${w}w`).join(', ');
+const fallback = `/images/${name}-${widths[widths.length - 1]}.webp`;
+---
+<picture class={cls}>
+  <source type="image/avif" srcset={set('avif')} sizes={sizes} />
+  <img src={fallback} srcset={set('webp')} sizes={sizes} alt={alt} width={W} height={H} loading={eager ? 'eager' : 'lazy'} decoding="async" fetchpriority={eager ? 'high' : undefined} />
+</picture>

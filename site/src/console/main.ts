@@ -95,7 +95,7 @@ function themeButton(): HTMLButtonElement {
 }
 
 function brand(): HTMLElement {
-  return h('a', { class: 'logo', href: '/', 'aria-label': 'Agents Hot home' }, rawIcon('<rect x="0.75" y="0.75" width="22.5" height="22.5" rx="5.5" fill="none" stroke="currentColor" opacity=".35"/><path d="M6.8 8.2 11.4 12l-4.6 3.8" stroke="var(--accent)" stroke-width="2.1"/><rect x="13" y="14.2" width="5.2" height="2.2" rx="1.1" fill="currentColor" stroke="none"/>', 24), h('span', null, 'agents', h('span', { class: 'tld' }, '.hot')));
+  return h('a', { class: 'logo', href: '/', 'aria-label': 'Agents Hot home' }, rawIcon('<defs><radialGradient id="cla" cx=".4" cy=".36" r=".64"><stop offset="0" stop-color="#fff"/><stop offset=".42" stop-color="#7fd8ff"/><stop offset="1" stop-color="#2bb8f0" stop-opacity=".25"/></radialGradient><radialGradient id="clb" cx=".4" cy=".36" r=".64"><stop offset="0" stop-color="#fff"/><stop offset=".42" stop-color="#ffb070"/><stop offset="1" stop-color="#f0803c" stop-opacity=".25"/></radialGradient></defs><path d="M7.6 12.6C8.9 7.4 13.2 5.6 16.4 7.2" stroke-opacity=".6" stroke-width="1.3" stroke-dasharray="0.01 2.6"/><circle cx="6.4" cy="16.2" r="4.1" fill="url(#cla)" stroke="none"/><circle cx="18" cy="8" r="3.4" fill="url(#clb)" stroke="none"/>', 24), h('span', null, 'agents', h('span', { class: 'tld' }, '.hot')));
 }
 
 function renderAuth(message?: string) {

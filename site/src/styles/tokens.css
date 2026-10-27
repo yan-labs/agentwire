@@ -1,90 +1,121 @@
-/* Agents Hot design tokens. Dark is the default; light is opt-in via <html data-theme="light"> (toggle in the header).
-   Fonts: Martian Mono (display), Geist Mono (UI, body, code), Geist (long-form prose in docs and legal pages). All self-hosted. */
-@font-face { font-family: 'Martian Mono'; src: url('/fonts/martian-mono-latin-standard-normal.woff2') format('woff2'); font-weight: 100 800; font-stretch: 75% 112.5%; font-style: normal; font-display: swap; }
-@font-face { font-family: 'Geist Mono'; src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+/* Agents Hot v3 "Deep Field" tokens. Dark is the default; light ("Daylight") is opt-in via <html data-theme="light">.
+   Two signal lights: ion (one assistant, also the interactive accent) and amber (the other assistant). Everything else is void, glass and hairlines.
+   Fonts: Geist (display + UI + prose), Geist Mono (labels, code, machine output). Self-hosted, SIL OFL. */
 @font-face { font-family: 'Geist'; src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
 
 :root {
   color-scheme: dark;
-  /* surfaces: near-black with a cool cast, hairline borders instead of shadows */
-  --bg: #07080a;
-  --bg-sunk: #050607;
-  --surface: #0b0d10;
-  --surface-2: #10141a;
-  --surface-3: #161b23;
-  --line: #1a1f27;
-  --line-strong: #2a323d;
+  /* ground + glass */
+  --bg: #04050b;
+  --bg-sunk: #030409;
+  --surface: #0a0d18;
+  --surface-2: #10141f;
+  --surface-3: #171c2b;
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.018));
+  --glass-flat: rgba(255, 255, 255, 0.035);
+  --glass-hi: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.075);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --shadow-deep: 0 40px 100px -40px rgba(0, 0, 0, 0.9);
+  --inset-hi: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   /* text */
-  --ink: #e9eef4;
-  --ink-2: #a3aeba;
-  --ink-3: #697582;
-  /* one electric signal colour */
-  --accent: #18e0ff;
-  --accent-ink: #18e0ff;
-  --accent-hover: #5cecff;
-  --accent-dim: rgba(24, 224, 255, 0.1);
-  --accent-line: rgba(24, 224, 255, 0.38);
-  --accent-glow: rgba(24, 224, 255, 0.28);
-  --on-accent: #021419;
-  /* secondary hues, used only to tell agents apart in message streams */
-  --hue-b: #ffb224;
-  --hue-c: #b69cff;
-  --hue-d: #ff6f91;
+  --ink: #eef1f8;
+  --ink-2: #aab1c5;
+  --ink-3: #7d85a1;
+  /* signal lights */
+  --ion: #7fd8ff;
+  --ion-deep: #2bb8f0;
+  --amber: #ffb070;
+  --violet: #9c8cff;
+  --hot: #f4f7ff;
+  --on-hot: #05070e;
+  --accent: #7fd8ff;
+  --accent-ink: #7fd8ff;
+  --accent-hover: #a9e6ff;
+  --accent-dim: rgba(127, 216, 255, 0.09);
+  --accent-line: rgba(127, 216, 255, 0.32);
+  --accent-glow: rgba(127, 216, 255, 0.45);
+  --amber-glow: rgba(255, 176, 112, 0.35);
+  --on-accent: #03121b;
+  --signal-grad: linear-gradient(100deg, #7fd8ff 0%, #cfe9ff 40%, #ffd9b8 62%, #ffb070 100%);
+  /* other agents in a stream */
+  --hue-b: #ffb070;
+  --hue-c: #b9acff;
+  --hue-d: #ff8fab;
   /* status */
-  --ok: #3ddc84;
-  --ok-dim: rgba(61, 220, 132, 0.12);
-  --warn: #ffb224;
-  --warn-dim: rgba(255, 178, 36, 0.12);
-  --danger: #ff5c7a;
-  --danger-dim: rgba(255, 92, 122, 0.12);
+  --ok: #5be3a6;
+  --ok-dim: rgba(91, 227, 166, 0.1);
+  --warn: #ffc56b;
+  --warn-dim: rgba(255, 197, 107, 0.1);
+  --danger: #ff6b81;
+  --danger-dim: rgba(255, 107, 129, 0.1);
   /* code */
-  --code-bg: #080a0d;
-  --inline-code-bg: #12161d;
-  --grid-line: rgba(255, 255, 255, 0.035);
-  --overlay: rgba(0, 0, 0, 0.66);
+  --code-bg: rgba(2, 3, 8, 0.72);
+  --code-solid: #05060d;
+  --inline-code-bg: rgba(255, 255, 255, 0.06);
+  --grid-line: rgba(255, 255, 255, 0.03);
+  --overlay: rgba(2, 3, 8, 0.7);
   /* type */
-  --font-display: 'Martian Mono', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-display: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   /* shape + layout */
-  --r-xs: 3px;
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --pill: 999px;
   --frame: 1200px;
-  --header-h: 52px;
+  --header-h: 64px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #fbfcfd;
-  --bg-sunk: #f1f4f7;
+  --bg: #f3f4f8;
+  --bg-sunk: #eceef4;
   --surface: #ffffff;
-  --surface-2: #f4f6f9;
-  --surface-3: #e9eef3;
-  --line: #e1e6ec;
-  --line-strong: #c6cfd9;
-  --ink: #0b1117;
-  --ink-2: #425061;
-  --ink-3: #758393;
-  --accent: #00bfe3;
-  --accent-ink: #00758d;
-  --accent-hover: #00a9ca;
-  --accent-dim: rgba(0, 191, 227, 0.1);
-  --accent-line: rgba(0, 150, 180, 0.4);
-  --accent-glow: rgba(0, 191, 227, 0.22);
-  --on-accent: #00151b;
-  --hue-b: #b26a00;
-  --hue-c: #6d4fd6;
-  --hue-d: #c2305a;
-  --ok: #138a4b;
-  --ok-dim: rgba(19, 138, 75, 0.1);
-  --warn: #a35f00;
-  --warn-dim: rgba(163, 95, 0, 0.1);
-  --danger: #cc2a49;
-  --danger-dim: rgba(204, 42, 73, 0.09);
-  --code-bg: #f4f7fa;
-  --inline-code-bg: #eaeff4;
-  --grid-line: rgba(11, 17, 23, 0.05);
-  --overlay: rgba(11, 17, 23, 0.4);
+  --surface-2: #f6f7fb;
+  --surface-3: #eceff6;
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.66));
+  --glass-flat: rgba(255, 255, 255, 0.7);
+  --glass-hi: rgba(255, 255, 255, 0.95);
+  --line: rgba(10, 14, 30, 0.08);
+  --line-strong: rgba(10, 14, 30, 0.15);
+  --shadow-deep: 0 30px 80px -40px rgba(20, 30, 70, 0.35);
+  --inset-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ink: #0b0e1a;
+  --ink-2: #434a62;
+  --ink-3: #626a82;
+  --ion: #2aa9e6;
+  --ion-deep: #0b86c2;
+  --amber: #f08a3c;
+  --violet: #6b5be0;
+  --hot: #0b0e1a;
+  --on-hot: #ffffff;
+  --accent: #0b86c2;
+  --accent-ink: #076d9f;
+  --accent-hover: #0a77ad;
+  --accent-dim: rgba(11, 134, 194, 0.08);
+  --accent-line: rgba(11, 134, 194, 0.32);
+  --accent-glow: rgba(42, 169, 230, 0.35);
+  --amber-glow: rgba(240, 138, 60, 0.3);
+  --on-accent: #ffffff;
+  --signal-grad: linear-gradient(100deg, #0b86c2 0%, #4a6fd6 45%, #b8641f 100%);
+  --hue-b: #a8571a;
+  --hue-c: #5b4bd0;
+  --hue-d: #c0305a;
+  --ok: #11865a;
+  --ok-dim: rgba(17, 134, 90, 0.09);
+  --warn: #9a5c00;
+  --warn-dim: rgba(154, 92, 0, 0.09);
+  --danger: #c8283f;
+  --danger-dim: rgba(200, 40, 63, 0.08);
+  --code-bg: #f8f9fc;
+  --code-solid: #f8f9fc;
+  --inline-code-bg: rgba(10, 14, 30, 0.06);
+  --grid-line: rgba(10, 14, 30, 0.04);
+  --overlay: rgba(11, 14, 26, 0.35);
 }

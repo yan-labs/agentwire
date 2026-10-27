@@ -24,6 +24,10 @@ for (const spec of pages) {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   await page.goto(base + path, { waitUntil: 'networkidle' });
+  if (full) { // walk the page so lazy images and scroll reveals load, then return to the top
+    await page.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 500) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)); } window.scrollTo(0, 0); });
+    await page.waitForTimeout(800);
+  }
   const sc = Number(flag('scroll', 0)); if (sc) await page.evaluate((y) => window.scrollTo(0, y), sc);
   await page.waitForTimeout(Number(flag('wait', 600)));
   const file = `${out}/${name}-${w}-${dark ? 'dark' : 'light'}.png`;

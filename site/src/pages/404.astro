@@ -2,11 +2,11 @@
 import Base from '../layouts/Base.astro';
 ---
 <Base title="Page not found" description="This page does not exist on Agents Hot." path="/404" noindex>
-  <section class="sec" style="border-top:0">
-    <div class="frame" style="max-width:760px;border-inline:0;padding:72px 24px 96px">
+  <section class="sec page-hero">
+    <div class="frame" style="max-width:820px;padding:120px 24px 140px">
       <div class="stack" style="gap:18px;justify-items:start">
-        <span class="label"><b>404</b> / no route</span>
-        <h1 class="display">No signal on this line.</h1>
+        <span class="eyebrow"><i></i>404 &middot; no route</span>
+        <h1 class="display">No signal <span class="grad">on this line.</span></h1>
         <pre class="peek" style="white-space:pre-wrap;max-width:100%">$ curl -i https://agents.hot/this-page
 HTTP/2 404</pre>
         <p class="lede">That page does not exist or has moved. Try the docs, or head back to the start.</p>
