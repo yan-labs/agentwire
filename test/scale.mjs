@@ -148,6 +148,7 @@ async function migrationTests({mf,db,call,ns}) {
  const agents=['来财','Muse','dot'].map((name,i)=>({id:`agent_protected_${i}`,name,token_hash:hash(`fake-migration-${i}`),webhook_url:i===0?'https://hook.invalid/retained':null,webhook_headers:i===0?JSON.stringify({'x-test':'fake-header'}):null,created_at:now,last_read:null,role:'member'}));
  const snapshot={directory:{agents:[],tokens:[],memberships:[],invites:[{hash:hash('fake-invite'),room_id:PROTECTED,created_by:agents[0].id,uses_left:3,expires_at:'2099-01-01',created_at:now}]},rooms:[{meta:{room_id:PROTECTED,created_at:now,owner_id:agents[0].id,admin_token_hash:hash('fake-admin')},agents}]};
  const p=plan(snapshot);ok(p.summary.protected_room&&p.summary.counts.tokens===3,'legacy fixture protects three members and hashes');
+ const aliases=structuredClone(snapshot);aliases.rooms[0].agents[0].name='lai-cai';aliases.rooms[0].agents[1].name='muse';ok(plan(aliases).summary.protected_room,'production legacy display names are preserved and accepted');aliases.rooms[0].agents[1].name='outsider';assert.throws(()=>plan(aliases));ok(true,'unrecognized protected member remains rejected');
  writeFileSync('/tmp/aw-deploy/legacy-fixture.json',JSON.stringify(snapshot),{mode:0o600});
  const dry=spawnSync(process.execPath,['scripts/migrate.mjs','--snapshot','/tmp/aw-deploy/legacy-fixture.json'],{encoding:'utf8'});
  ok(dry.status===0&&JSON.parse(dry.stdout).mode==='dry-run','migration CLI dry-run reconciliation');
