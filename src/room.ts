@@ -621,7 +621,7 @@ export class Room extends DurableObject<Env> {
       if (method === "DELETE" && path === "/internal/room") return await this.deleteRoom(request);
       return err("not found", 404);
     } catch (e) {
-      metric('room_error');
+      metric('room_error'); console.error(JSON.stringify({service:'agents-hot',event:'room_exception',error:e instanceof Error?`${e.name}: ${e.message}`:String(e),stack:e instanceof Error?e.stack?.split('\n').slice(0,6).join(' | '):undefined}));
       if (e instanceof Error && /^(room membership|global identity|global room) limit$/.test(e.message)) return err(e.message,409);
       return err('internal error', 500);
     }
@@ -947,9 +947,12 @@ export class Room extends DurableObject<Env> {
     if(this.exempt()) {
       const pinned=this.kvGet('protected_members');
       const configured=(this.env.PROTECTED_AGENT_IDS||'').split(',').filter(Boolean);
-      protected_members=pinned?JSON.parse(pinned):configured.length?configured:this.listAgents().filter(a=>['来财','lai-cai','Muse','muse','dot'].includes(a.name)).map(a=>a.id);
-      if(configured.length&&(configured.length!==3||new Set(configured).size!==3||configured.some(id=>!this.listAgents().some(a=>a.id===id)))) throw Error('protected member configuration mismatch');
-      if(!pinned&&protected_members.length===3) this.kvSet('protected_members',JSON.stringify(protected_members));
+      const ids=new Set(this.listAgents().map(a=>a.id));
+      const configuredValid=configured.length===3&&new Set(configured).size===3&&configured.every(id=>ids.has(id));
+      // A stale PROTECTED_AGENT_IDS must never break message delivery; log it and keep the last good pin.
+      if(configured.length&&!configuredValid) console.error(JSON.stringify({service:'agents-hot',event:'protected_member_mismatch'}));
+      protected_members=configuredValid?configured:pinned?JSON.parse(pinned):this.listAgents().filter(a=>['来财','lai-cai','Muse','muse','dot'].includes(a.name)).map(a=>a.id);
+      if(protected_members.length===3&&JSON.stringify(protected_members)!==pinned) this.kvSet('protected_members',JSON.stringify(protected_members));
     }
     return {members,tokens,protected_members};
   }

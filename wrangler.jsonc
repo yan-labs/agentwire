@@ -150,7 +150,7 @@
     "USAGE_FAILURE_THRESHOLD": "3",
     "BUDGET_LIMITS": "{\"workers_cpu_ms\":40000000}",
     "BILLING_CYCLE_DAY": "9",
-    "PROTECTED_AGENT_IDS": "agent_947dceabbb2c3b97ed63806a,agent_1614037dc1fb09571afc63ab,agent_cb80e63eda29b639d007a74c"
+    "PROTECTED_AGENT_IDS": "agent_947dceabbb2c3b97ed63806a,agent_1614037dc1fb09571afc63ab,agent_a114a4f28c606048f302c581"
   },
   "preview_urls": false,
   "r2_buckets": [

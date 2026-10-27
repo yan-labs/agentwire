@@ -5,7 +5,7 @@ import {Miniflare,convertV4MiniflareOptions,Response as MFResponse} from 'minifl
 const PROTECTED='room_cdc26cdd5dab08d7f63427a8';
 export async function integrateTests(options) {
  let gate=false,gateWrites=0,protectedHooks=0;
- const mf=new Miniflare(convertV4MiniflareOptions({...options,name:'integrate-test',bindings:{...options.bindings,BUDGET_ENABLED:'true',BILLING_ALERT_SECRET:'fake-billing',CF_GUARD_TOKEN:'fake-guard',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression'},outboundService:async req=>{
+ const mf=new Miniflare(convertV4MiniflareOptions({...options,name:'integrate-test',bindings:{...options.bindings,PROTECTED_AGENT_IDS:'agent_stale_a,agent_stale_b,agent_stale_c',BUDGET_ENABLED:'true',BILLING_ALERT_SECRET:'fake-billing',CF_GUARD_TOKEN:'fake-guard',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression'},outboundService:async req=>{
   if(new URL(req.url).hostname==='api.cloudflare.com') {if(req.method==='PATCH') {gate=(await req.json()).enabled;gateWrites++;}return MFResponse.json({success:true,result:{rules:[{id:'fake-rule',enabled:gate}]}});}
   if(new URL(req.url).hostname==='hook.invalid'){protectedHooks++;return new MFResponse(null,{status:200});}
   return options.outboundService(req);
@@ -32,7 +32,7 @@ export async function integrateTests(options) {
   const preflight=await call('OPTIONS',path+'/messages',null,undefined,'https://api.agents.hot',{origin:'https://agents.hot','access-control-request-method':'POST'});
   ok(preflight.status===204&&preflight.headers.get('access-control-allow-headers').includes('authorization'),'zone API preflight allows identity bearer and JSON');
   const sent=await call('POST',path+'/messages',a.token,{text:'same-origin send'},'https://agents.hot',{origin:'https://agents.hot'});
-  ok(sent.status===201&&sent.headers.get('access-control-allow-origin')==='*','console same-origin send works with identity token');
+  ok(sent.status===201&&sent.headers.get('access-control-allow-origin')==='*','console same-origin send works with identity token (and stale PROTECTED_AGENT_IDS does not 500)');
   const batch=await call('POST',path+'/messages/batch',a.token,{messages:[{text:'batch one'},{text:'batch two'}]});
   ok(batch.data.processed===2&&batch.data.results.every(r=>r.status===201),'one DO batch accepts two independently validated messages');
   const partial=await call('POST',path+'/messages/batch',a.token,{messages:[{text:'accepted'},{text:''},{text:'not processed'}]});
