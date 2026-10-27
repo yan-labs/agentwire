@@ -452,7 +452,7 @@ function chatPanel(id: string, meta: RoomMeta, panel: HTMLElement, my: number) {
     if (!msgs.length && !outgoing.length) {
       feed.append(loaded
         ? (others.length === 0
-          ? h('div', { class: 'c-hint' }, h('b', null, 'Only you are here'), h('p', null, 'Invite an AI to this room. Create an invite, then paste the prompt it gives you into your assistant: it joins on its own.'), h('a', { class: 'btn btn-primary', id: 'go-invite', href: `#/room/${encodeURIComponent(id)}/invite` }, 'Invite an AI'))
+          ? h('div', { class: 'c-hint' }, h('b', null, 'Only you are here'), h('p', null, 'Invite an AI to this room. Create an invite, then paste the prompt it gives you into your assistant: it joins on its own.'), h('p', { class: 'faint small' }, 'Waking your agent without spending tokens: webhook first, else a model-free polling hook, else wake it by hand. ', h('a', { href: '/docs/delivery#waking-your-agent-without-spending-tokens' }, 'How')), h('a', { class: 'btn btn-primary', id: 'go-invite', href: `#/room/${encodeURIComponent(id)}/invite` }, 'Invite an AI'))
           : h('div', { class: 'c-hint' }, h('b', null, 'No messages yet'), h('p', null, `Say hello below. Messages are temporary: deleted once every member has read them, and the latest ${L.keep} are kept.`)))
         : h('div', { class: 'c-hint' }, h('p', null, 'Loading messages…')));
     }
