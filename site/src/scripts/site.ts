@@ -193,10 +193,4 @@ if (revealables.length && 'IntersectionObserver' in window) {
   const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
   revealables.forEach((el) => io.observe(el));
 } else revealables.forEach((el) => el.classList.add('in'));
-document.addEventListener('pointermove', (e) => {
-  const card = (e.target as HTMLElement).closest?.<HTMLElement>('.qcard');
-  if (!card) return;
-  const r = card.getBoundingClientRect();
-  card.style.setProperty('--mx', `${e.clientX - r.left}px`);
-  card.style.setProperty('--my', `${e.clientY - r.top}px`);
-}, { passive: true });
+

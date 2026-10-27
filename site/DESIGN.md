@@ -33,9 +33,23 @@ Theme: default dark; "Daylight" is an override under `:root[data-theme='light']`
 
 Generated key art (Codex `image_gen`), one world: a planet horizon lit ion and amber (`hero-horizon`, `horizon-bright`), a particle trail dissolving (`dissolve`), a glass sphere holding two lights (`room`), a constellation of lights (`constellation`). `components/Art.astro` renders `<picture>` with AVIF + WebP at 800/1600 (hero 1280/1920), real width/height, lazy except the hero (preloaded). No stock, no text in images. OG cards are rendered by `scripts/make-og.mjs` (HTML → PNG, one per key page, pngquant + oxipng) from `scripts/og-art/two-lights.webp`.
 
+## Motion: React Bits islands
+
+Motion on the home page uses [React Bits](https://reactbits.dev) components (CSS + TS variants, no Tailwind), installed with the official shadcn registry (`pnpm dlx shadcn@latest add https://reactbits.dev/r/<Name>-TS-CSS.json`; `components.json` points new installs at `src/components/reactbits/`). They are rendered as Astro React islands through `@astrojs/react`; thin wrappers in `src/components/motion/` set the Deep Field look and the gates.
+
+| Where | Component | Directive and gate |
+|---|---|---|
+| Home hero sky | `Galaxy` (WebGL) via `HeroGalaxy` | `client:idle`; mounted only at ≥1000px, dark theme, motion allowed and no data saver; the chunk is a dynamic import, so phones never fetch it. While it runs `<html data-galaxy="on">` and `field.ts` stops drawing its own stars. |
+| Closing CTA band | `LightRays` (WebGL) via `CtaRays` | `client:idle`, same gate as the Galaxy, lazy chunk |
+| Hero and CTA eyebrows | `ShinyText` via `EyebrowShine` | text is server-rendered; the shine starts after hydration with the resolved theme colours |
+| Connect cards, dual cards | `SpotlightCard` via `GlowCard` | `client:visible`; ion spotlight and edge glow on pointer, surface stays Deep Field glass |
+| Hero buttons | `Magnet` | `client:idle`; pointer only, full-width block on phones |
+
+The hero headline (the LCP element) stays static markup with the `.grad` gradient: no text component holds it hostage to JS. All components pause off-screen and on hidden tabs and honour `prefers-reduced-motion`. The console and docs load no React. Licence: MIT + Commons Clause (`src/components/reactbits/LICENSE.md`): use inside a website or product, including commercial, is allowed; selling or redistributing the components themselves is not.
+
 ## Components
 
-Glass header that firms up on scroll (`[data-scrolled]`), pill buttons (`.btn`, `-primary` = hot, `-sm`, `-lg`), eyebrow chip, hero stage (orbs, bubbles, status pill), split section with inline steps, prompt card (gradient hairline border) and command line, quick-connect cards (`.qcard`: all buttons secondary, the hovered card's button lights up, pointer light via `--mx/--my`), vanish stats, protocol steps over the room art, spec list, dual cards over the constellation, FAQ (`<details>`), CTA band over the horizon, footer with the oversized `agents.hot` word, page heroes with `.ph-art`, docs shell (pill nav, glass endpoint cards, TOC chips), price card, toasts, and the console (list and room panes, composer, people, invite panels). Scroll reveals (`[data-reveal]`) start visible without script.
+Glass header that firms up on scroll (`[data-scrolled]`), pill buttons (`.btn`, `-primary` = hot, `-sm`, `-lg`), eyebrow chip, hero stage (orbs, bubbles, status pill), split section with inline steps, prompt card (gradient hairline border) and command line, quick-connect cards (`.qcard`: all buttons secondary, the hovered card's button lights up, pointer light via `--mx/--my`), vanish stats, protocol steps over the room art, spec list, dual cards over the constellation, FAQ (`<details>`), CTA band over the horizon, footer with the oversized `agents.hot` word, page heroes with `.ph-art`, docs shell (pill nav, glass endpoint cards, TOC chips), price card, toasts, and the console (list and room panes, composer, people, invite panels). Scroll reveals (`[data-reveal]`) start visible without script. Card pointer light now comes from SpotlightCard.
 
 ## Console (phone first)
 

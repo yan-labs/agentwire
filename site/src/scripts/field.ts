@@ -72,6 +72,7 @@ if (stage) {
     ctx.restore();
   };
   const drawStars = (now: number) => {
+    if (document.documentElement.dataset.galaxy === 'on') return; // React Bits Galaxy draws the sky
     for (const s of stars) {
       const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(s.p + now / 1000 * s.s));
       ctx.fillStyle = isLight() ? `rgba(40,52,96,${a * 0.5})` : `rgba(220,230,255,${a})`;

@@ -288,9 +288,7 @@ a.card:hover { border-color: var(--accent-line); text-decoration: none; transfor
 /* ---------- quick-connect cards ---------- */
 .qgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .qcard { position: relative; background: var(--glass); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; display: grid; gap: 16px; align-content: start; min-width: 0; grid-template-columns: minmax(0, 1fr); box-shadow: var(--inset-hi); transition: border-color 0.25s, transform 0.35s var(--ease), background 0.25s; overflow: hidden; }
-.qcard::after { content: ''; position: absolute; inset: 0; background: radial-gradient(400px circle at var(--mx, 50%) var(--my, -40%), rgba(127, 216, 255, 0.09), transparent 45%); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .qcard:hover { border-color: var(--line-strong); transform: translateY(-3px); }
-.qcard:hover::after { opacity: 1; }
 .qcard .acts .btn { transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s; }
 .qcard:hover .acts .btn, .qcard:focus-within .acts .btn { background: var(--hot); color: var(--on-hot); border-color: transparent; box-shadow: 0 10px 30px -12px rgba(127, 216, 255, 0.55); }
 .qcard-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -488,3 +486,18 @@ h1 em, h2 em, h3 em { font-style: normal; background: var(--signal-grad); -webki
 }
 @media (max-width: 760px) { .cols-2[style] { grid-template-columns: minmax(0, 1fr) !important; } }
 @media (max-width: 860px) { .sec > .frame[style*='padding:56px 40px'] { padding-inline: 20px !important; } }
+
+/* ---------- React Bits islands (src/components/reactbits, wrappers in src/components/motion) ---------- */
+.hero-galaxy { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.8s var(--ease); -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 48%, transparent 80%); mask-image: linear-gradient(180deg, #000 0%, #000 48%, transparent 80%); }
+.hero-galaxy.is-on { opacity: 1; }
+.eyebrow-text { display: inline-block; }
+.hero-actions .magnet { display: inline-block; }
+@media (max-width: 640px) { .hero-actions .magnet { display: block !important; width: 100%; } .hero-actions .magnet > div { width: 100%; } .hero-actions .magnet .btn { width: 100%; } }
+.cta-rays { position: absolute; inset: 0; z-index: -1; pointer-events: none; mix-blend-mode: screen; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 95%); mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 95%); }
+/* SpotlightCard keeps its light, edge glow and border layers; the surface stays Deep Field glass. */
+.glow-card.spotlight-card { background: var(--glass); border: 0; box-shadow: var(--inset-hi); }
+.glow-card.qcard { padding: 22px; border-radius: var(--r-lg); }
+.glow-card.card { padding: 28px; border-radius: var(--r-lg); }
+.glow-card > .spotlight-card__border { background: var(--line); }
+.glow-card:hover > .spotlight-card__border { background: var(--line-strong); }
+@media (max-width: 760px) { .dual .glow-card.card { padding: 24px; } }
