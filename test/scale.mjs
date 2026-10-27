@@ -204,12 +204,13 @@ async function budgetTests() {
  assert.throws(()=>parseUsage({...account,periodic:undefined}));ok(true,'missing dataset rejected');
  assert.throws(()=>parseUsage({...account,kv:[{sum:{requests:1},dimensions:{actionType:'unknown'}}]}));ok(true,'unknown metered operation rejected');
  assert.throws(()=>parseUsage({...account,workers:Array(10000).fill(account.workers[0])}));ok(true,'truncated aggregate rejected');
+ ok(USAGE_QUERY.includes('date_geq: $storageDate'),'storage query includes previous day across UTC sample delay');
  ok(USAGE_QUERY.includes('cpuTimeUs')&&USAGE_QUERY.includes('durableObjectsSqlStorageGroups')&&USAGE_QUERY.includes('rowsWritten'),'default query includes CPU and SQLite metrics');
  const store=new Map([['budget',{level:0,month:'2026-10',reason:'normal'}]]),calls=[];let fail=false,remoteGate=false;
  const env={BUDGET_ENABLED:'true',CF_ANALYTICS_TOKEN:'fake-analytics',CF_GUARD_TOKEN:'fake-guard',CF_ACCOUNT_ID:'fake-account',CF_ZONE_ID:'fake-zone',WAF_RULESET_ID:'fake-ruleset',WAF_RULE_ID:'fake-rule',WAF_API_EXPRESSION:'fake-expression',PENDING:{get:async k=>store.get(k)??null,put:async(k,v)=>{store.set(k,k==='billing-latch'?v:JSON.parse(v));},delete:async k=>store.delete(k)}};
  const mock=async(url,init)=>{
    const body=init.body?JSON.parse(init.body):{};calls.push({url,body,method:init.method});
-   if(url.endsWith('/graphql')) return Response.json(fail?{errors:[{}]}:{data:{viewer:{accounts:[account]}}});
+   if(url.endsWith('/graphql')) {assert.equal(body.variables.storageDate,'2026-10-30');assert.equal(body.variables.storageStart,'2026-10-30T23:59:00.000Z');return Response.json(fail?{errors:[{}]}:{data:{viewer:{accounts:[account]}}});}
    if(init.method==='PATCH') {assert(url.endsWith('/rules/fake-rule'));remoteGate=body.enabled;}
    else assert(url.endsWith('/rulesets/fake-ruleset'),'GET reads ruleset, not unsupported single-rule endpoint');
    return Response.json({success:true,result:{rules:[{id:'unrelated',enabled:true},{id:'fake-rule',enabled:remoteGate}]}});
