@@ -12,7 +12,7 @@ export async function regressionTests() {
  const failures=[];
  for(const enabled of [true,false]) {
   let started=false,finished=false,deliveries=0;
-  const mf=new Miniflare(convertV4MiniflareOptions({name:'regression-test',modules:true,modulesRoot:'/tmp/aw-deploy',scriptPath:'/tmp/aw-deploy/regression-worker.mjs',compatibilityDate:config.compatibility_date,compatibilityFlags:config.compatibility_flags,cf:false,log:new Log(LogLevel.ERROR),unsafeInspectDurableObjects:true,durableObjects:Object.fromEntries(config.durable_objects.bindings.map(b=>[b.name,{className:b.class_name,useSQLite:true}])),d1Databases:['DB'],kvNamespaces:['PENDING'],r2Buckets:['UNREAD'],ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:r.simple}])),bindings:{...config.vars,MIGRATION_ENABLED:String(enabled),OPERATOR_TOKEN:'fixture-operator'},outboundService:async()=>{started=true;deliveries++;await sleep(2500);finished=true;return new Response(null,{status:200});}}));
+  const mf=new Miniflare(convertV4MiniflareOptions({name:'regression-test',modules:true,modulesRoot:'/tmp/aw-deploy',scriptPath:'/tmp/aw-deploy/regression-worker.mjs',compatibilityDate:config.compatibility_date,compatibilityFlags:config.compatibility_flags,cf:false,log:new Log(LogLevel.ERROR),unsafeInspectDurableObjects:true,durableObjects:Object.fromEntries(config.durable_objects.bindings.map(b=>[b.name,{className:b.class_name,useSQLite:true}])),d1Databases:['DB'],kvNamespaces:['PENDING','OAUTH_KV'],r2Buckets:['UNREAD'],ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:r.simple}])),bindings:{...config.vars,MIGRATION_ENABLED:String(enabled),OPERATOR_TOKEN:'fixture-operator'},outboundService:async()=>{started=true;deliveries++;await sleep(2500);finished=true;return new Response(null,{status:200});}}));
   try {
    const db=await mf.getD1Database('DB');
    for(const file of readdirSync('migrations').filter(f=>f.endsWith('.sql')).sort()) await db.exec(readFileSync('migrations/'+file,'utf8').replaceAll('\n',' '));
@@ -61,10 +61,10 @@ export async function regressionTests() {
     const first=(await call('POST',path+'/messages',b.token,{text:'anchor'})).data.message;
     const storage=await mf.unsafeGetDurableObjectStorage('regression-test','Room',{name:room.room_id});
     await storage.exec('UPDATE agents SET last_read=? WHERE id=?',first.id,a.agent_id);
-    for(let i=0;i<51;i++) await call('POST',path+'/messages',b.token,{text:'retained-'+i});
+    for(let i=0;i<51;i++) await call('POST',path+'/messages',b.token,{text:'retained-'+i+' @all'});
     const result=await call('GET',path+'/messages?after='+first.id+'&limit=200',a.token);
     assert.equal(result.data.messages.length,50);
-    assert.equal(result.data.messages[0].text,'retained-1');
+    assert.equal(result.data.messages[0].text,'retained-1 @all');
     await (await mf.getDurableObjectNamespace('ROOM')).getByName(room.room_id).fetch('http://local/internal/prime',{method:'POST'});
     const snapshot=await (await mf.getKVNamespace('PENDING')).get('room:'+room.room_id,'json');
     assert.equal(snapshot.members[a.agent_id].count,50);
@@ -78,7 +78,7 @@ export async function regressionTests() {
     await call('POST',p+'/members',a.token,{agent_id:b.agent_id});
     const stub=(await mf.getDurableObjectNamespace('ROOM')).getByName(r);
     const before=(await stub.regressionCounts()).alarms;
-    await call('POST',p+'/messages',a.token,{text:'slow'});
+    await call('POST',p+'/messages',a.token,{text:'slow',to:b.agent_id});
     for(let i=0;i<50&&!started;i++) await sleep(100);
     assert.ok(started,'delivery started');
     await call('POST',p+'/messages',a.token,{text:'concurrent',to:a.agent_id});

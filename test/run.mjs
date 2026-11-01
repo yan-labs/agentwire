@@ -10,12 +10,12 @@ await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-deploy/test-worker.mj
 let hookAttempts=0, turnstileCalls=0;
 const options={
  unsafeInspectDurableObjects:true,name:'agentwire-test',modules:true,modulesRoot:'/tmp/aw-deploy',scriptPath:'/tmp/aw-deploy/test-worker.mjs',compatibilityDate:'2026-05-03',compatibilityFlags:['nodejs_compat'],cf:false,port:0,log:new Log(LogLevel.ERROR),
- durableObjects:{ROOM:{className:'Room',useSQLite:true},DIRECTORY:{className:'Directory',useSQLite:true},BUDGET_CONTROL:{className:'BudgetController',useSQLite:true}},d1Databases:['DB'],kvNamespaces:['PENDING'],r2Buckets:['UNREAD'],
+ durableObjects:{ROOM:{className:'Room',useSQLite:true},DIRECTORY:{className:'Directory',useSQLite:true},BUDGET_CONTROL:{className:'BudgetController',useSQLite:true}},d1Databases:['DB'],kvNamespaces:['PENDING','OAUTH_KV'],r2Buckets:['UNREAD'],
  ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:r.simple}])),
  bindings:{...config.vars,OPERATOR_TOKEN:'test-only-operator',TURNSTILE_SECRET:'test-only-secret'},
  outboundService:async(req)=>{
    const url=new URL(req.url);
-   if(url.hostname==='127.0.0.1'&&url.port==='8799') {const r=await fetch(req.url,{method:req.method,headers:Object.fromEntries(req.headers),body:await req.arrayBuffer()});return new MFResponse(await r.arrayBuffer(),{status:r.status,headers:Object.fromEntries(r.headers)});}
+   if(url.hostname==='127.0.0.1'&&url.port==='8799') {const headers=Object.fromEntries(req.headers);delete headers['content-length'];delete headers['host'];const r=await fetch(req.url,{method:req.method,headers,body:await req.arrayBuffer()});return new MFResponse(await r.arrayBuffer(),{status:r.status,headers:Object.fromEntries(r.headers)});}
    if(url.hostname==='hook.invalid') {hookAttempts++; return new MFResponse(null,{status:503});}
    if(url.hostname==='challenges.cloudflare.com') {turnstileCalls++;const body=await req.json();return MFResponse.json({success:body.response==='test-valid-proof',hostname:'agents.hot'});}
    throw Error('unexpected external request in local test');
@@ -29,6 +29,8 @@ try {
  assert.equal(run,0,'legacy regression suite');
  const {scaleTests}=await import('./scale.mjs');
  await scaleTests({mf,db,base,getHookAttempts:()=>hookAttempts,getTurnstileCalls:()=>turnstileCalls});
+ const {oauthTests}=await import('./oauth.mjs');
+ await oauthTests({base});
  const {integrateTests}=await import('./integrate.mjs');
  await integrateTests(options);
  const {limitTests}=await import('./limits.mjs');

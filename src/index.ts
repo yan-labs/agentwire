@@ -8,7 +8,12 @@ import { mcp } from './mcp';
 import { getBudget, budgetError } from './budget';
 import { openapi } from './openapi';
 import { BudgetController } from './budget-controller';
+import { authorize, isOAuthPath, oauthOriginOk, oauthProvider } from './oauth';
 export { Room, Directory, BudgetController };
+
+function isWorkerPath(pathname: string) {
+  return /^\/(v1(?:\/|$)|mcp\/?$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname) || isOAuthPath(pathname);
+}
 
 function corsHeaders(): HeadersInit {
   return {
@@ -90,9 +95,9 @@ const handler = {
     const { pathname } = url;
     const method = request.method.toUpperCase();
     if(url.hostname==='www.agents.hot') return Response.redirect(`https://agents.hot${pathname}${url.search}`,301);
-    if(!pathname.startsWith('/internal/billing-')&&(/^\/(v1(?:\/|$)|mcp$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname)||url.hostname.endsWith('.workers.dev'))) {
+    if(!pathname.startsWith('/internal/billing-')&&(isWorkerPath(pathname)||url.hostname.endsWith('.workers.dev'))) {
       const state=await getBudget(env);
-      if(state.level>=4&&!await protectedRequest(request,env)) return withCors(budgetError(state,method,pathname)!);
+      if(state.level>=4&&!await protectedRequest(request,env)&&!isOAuthPath(pathname)) return withCors(budgetError(state,method,pathname)!);
     }
     if(pathname==='/openapi.json' && method==='GET') return json(openapi(url.origin));
     if(pathname==='/v1/public-config' && method==='GET') return json({turnstile_site_key:env.TURNSTILE_SITE_KEY||null,limits:limits(env),...limits(env)});
@@ -103,8 +108,9 @@ const handler = {
       if(!secret||!supplied||!await safeEqual(secret,supplied)) return json({error:'forbidden'},403);
       return json({ok:true,state:await env.BUDGET_CONTROL.getByName('global').run(restore?'restore':'stop')});
     }
-    if(pathname==='/mcp') return mcp(request,env,(r)=>handler.fetch(r,env));
-    if(url.hostname==='agents.hot'&&!/^\/(v1(?:\/|$)|mcp$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname)&&env.ASSETS) return env.ASSETS.fetch(request);
+    if(pathname==='/authorize') return authorize(request,env);
+    if(pathname==='/mcp'||pathname==='/mcp/') return mcp(request,env,(r)=>handler.fetch(r,env));
+    if(url.hostname==='agents.hot'&&!isWorkerPath(pathname)&&env.ASSETS) return env.ASSETS.fetch(request);
 
     if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders() });
@@ -349,11 +355,25 @@ const handler = {
     return withCors(res);
   },
 } satisfies ExportedHandler<Env>;
+async function route(request:Request,env:Env,ctx:ExecutionContext) {
+  const url=new URL(request.url);
+  if(url.pathname==='/.well-known/oauth-protected-resource') {
+    url.pathname='/.well-known/oauth-protected-resource/mcp';
+    request=new Request(url.toString(),request);
+  }
+  if((url.pathname==='/mcp'||url.pathname==='/mcp/')&&request.method!=='OPTIONS') {
+    const token=bearer(request);
+    if(token&&await directory(env).resolve(token)) return mcp(request,env,(r)=>handler.fetch(r,env));
+  }
+  if(oauthOriginOk(url.origin)&&env.OAUTH_KV) return oauthProvider(url.origin,handler).fetch(request,env,ctx);
+  return handler.fetch(request,env);
+}
+
 export default {
   async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext) {ctx.waitUntil(env.BUDGET_CONTROL.getByName('global').run('sample').then(()=>undefined));},
-  async fetch(request:Request,env:Env) {
+  async fetch(request:Request,env:Env,ctx:ExecutionContext) {
     let res:Response;
-    try {res=await handler.fetch(request,env);}
+    try {res=await route(request,env,ctx);}
     catch(e) {res=e instanceof Error&&/^(room membership|global identity|global room|room invite) limit$/.test(e.message)?json({error:e.message},409):json({error:'internal error'},500);}
     metric('request',{method:request.method,status:res.status,error:res.status>=500});
     return res;

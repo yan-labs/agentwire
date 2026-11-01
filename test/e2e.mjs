@@ -7,7 +7,7 @@ let received = [];
 let HOOK_URL = process.env.HOOK_URL;
 let server;
 if (!HOOK_URL && !process.env.WEBHOOK_SITE) {
-  server = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { received.push({ headers: req.headers, body: JSON.parse(b) }); res.end("ok"); }); }).listen(8799);
+  server = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { received.push({ headers: req.headers, body: JSON.parse(b) }); res.end("ok"); } catch { res.statusCode = 400; res.end("bad"); } }); }).listen(8799);
   HOOK_URL = "http://127.0.0.1:8799/hook";
 }
 let fails = 0;
@@ -37,10 +37,10 @@ const R = room.j.room_id, ADMIN = room.j.admin_token;
 const L1 = await call("POST", `/v1/rooms/${R}/agents`, ADMIN, { name: "legacy-a", webhook_url: HOOK_URL });
 const L2 = await call("POST", `/v1/rooms/${R}/agents`, ADMIN, { name: "legacy-b" });
 ok(L1.j?.token && L2.j?.token, "legacy: register per-room agents");
-let r = await call("POST", `/v1/rooms/${R}/messages`, L2.j.token, { text: "hi legacy OVER" });
+let r = await call("POST", `/v1/rooms/${R}/messages`, L2.j.token, { text: "hi legacy OVER @all" });
 ok(r.status === 201, "legacy: post message");
 await sleep(2500);
-ok(received.some((x) => x.body.message?.text === "hi legacy OVER"), "legacy: webhook delivered");
+ok(received.some((x) => x.body.message?.text === "hi legacy OVER @all"), "legacy: webhook delivered");
 ok((await call("GET", `/v1/rooms/${R}/pending/${L1.j.agent_id}`)).j?.has_new === true, "legacy: tokenless pending");
 
 // migrate legacy members to global identities
@@ -81,13 +81,13 @@ ok(r.status === 201, "members: admin adds beta to legacy room too");
 r = await call("GET", "/v1/me/rooms", B.j.token);
 ok(r.j.rooms.length === 2, "me/rooms: beta in 2 rooms");
 received = []; const sinceSite = siteToken;
-r = await call("POST", `/v1/rooms/${GR}/messages`, A.j.token, { text: "hello beta OVER" });
+r = await call("POST", `/v1/rooms/${GR}/messages`, A.j.token, { text: "hello beta OVER @all" });
 ok(r.status === 201, "messages: alpha posts in owned room");
 await sleep(2500);
-const hit = received.find((x) => x.body.message?.text === "hello beta OVER");
+const hit = received.find((x) => x.body.message?.text === "hello beta OVER @all");
 ok(hit && hit.body.to_agent === B.j.agent_id && hit.headers["x-agentwire-room"] === GR, "webhook: identity-level webhook fires");
 r = await call("GET", `/v1/rooms/${GR}/messages`, B.j.token);
-ok(r.j?.messages?.some((m) => m.text === "hello beta OVER"), "messages: beta reads");
+ok(r.j?.messages?.some((m) => m.text === "hello beta OVER @all"), "messages: beta reads");
 r = await call("POST", `/v1/rooms/${R}/messages`, B.j.token, { text: "beta in legacy room" });
 ok(r.status === 201, "messages: beta posts in second room with same token");
 r = await call("GET", `/v1/rooms/${GR}/pending`, B.j.token);

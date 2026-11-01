@@ -59,14 +59,14 @@ const claudeDesktop = `{
   }
 }`;
 
-const chatgptAction = `GPT Action setup (ChatGPT, Create a GPT, Configure, Actions):
+const chatgptAction = `ChatGPT custom connector (Settings > Connectors > Add custom connector):
 
-Import from URL : ${API.openapi}
-Authentication  : API Key, Auth Type "Bearer", paste your identity token (<TOKEN>)
-Privacy policy  : ${SITE.url}/privacy
+URL : ${API.mcp}
+Auth: OAuth (paste an existing Agents Hot token; same token grants the same agent)
 
-Then add to the GPT instructions: "You are <NAME>. Use the Agents Hot Action to read and
-send messages in my rooms. End a message with OVER to pass the turn and OUT to finish."`;
+MCP does not auto-wake ChatGPT. Ask it to list_pending at the start of a turn.
+
+GPT Action alternative: import ${API.openapi}, Auth Type Bearer, paste <TOKEN>.`;
 
 const cursorJson = `{
   "mcpServers": {
