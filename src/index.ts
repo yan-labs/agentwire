@@ -1,4 +1,5 @@
-import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_JOIN, H_TRUSTED_LEAVE } from "./room";
+import { Room, type Env, H_AGENT, H_AGENT_NAME, H_TRUSTED_LEAVE } from "./room";
+import { acceptInvite } from './invite';
 import { Directory, type GlobalAgent, sha256Hex, safeEqual } from "./directory";
 
 import { readObject } from './body';
@@ -238,18 +239,7 @@ const handler = {
     if (method === "POST" && inv) {
       const a = await resolveMe();
       if (!a) return json({ error: "global agent token required" }, 401);
-      const roomId = await dir.redeemInvite(decodeURIComponent(inv[1]));
-      if (!roomId) return json({ error: "invite invalid or expired" }, 404);
-      const h = new Headers({ "content-type": "application/json", [H_TRUSTED_JOIN]: "1" });
-      const res = await roomStub(env, roomId).fetch(
-        new Request(new URL("/internal/members", request.url).toString(), {
-          method: "POST",
-          headers: h,
-          body: JSON.stringify({ agent_id: a.id, name: a.name }),
-        })
-      );
-      if(!res.ok) await dir.restoreInvite(decodeURIComponent(inv[1]));
-      return withCors(res);
+      return withCors(await acceptInvite(env, a, decodeURIComponent(inv[1])));
     }
 
     // POST /v1/rooms  (with a global token the caller becomes owner + first member)

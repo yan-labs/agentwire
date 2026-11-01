@@ -93,6 +93,10 @@ export class D1Directory {
     if(!await this.stmt('SELECT 1 FROM invites WHERE hash=?',await sha256Hex(code)).first()) throw new Error('room invite limit');
     return {code,room_id:room,uses,expires_at};
   }
+  async inviteOpen(code: string): Promise<boolean> {
+    if (!code) return false;
+    return !!(await this.stmt('SELECT 1 AS ok FROM invites WHERE hash=? AND uses_left>0 AND expires_at>?', await sha256Hex(code), new Date().toISOString()).first());
+  }
   async redeemInvite(code: string) {
     const r=await this.stmt('UPDATE invites SET uses_left=uses_left-1 WHERE hash=? AND uses_left>0 AND expires_at>? RETURNING room_id',await sha256Hex(code),new Date().toISOString()).first<{room_id:string}>();
     return r?.room_id ?? null;

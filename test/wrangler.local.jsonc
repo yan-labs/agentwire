@@ -86,6 +86,14 @@
         "limit": 10000,
         "period": 60
       }
+    },
+    {
+      "name": "AUTHORIZE_LIMITER",
+      "namespace_id": "1005",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
     }
   ],
   "vars": {
@@ -104,6 +112,7 @@
     "TURNSTILE_SITE_KEY": "",
     "BUDGET_ENABLED": "false",
     "MAX_IDENTITIES": "3000",
+    "AUTHORIZE_CREATES_PER_HOUR": "3",
     "MAX_GLOBAL_ROOMS": "500"
   },
   "r2_buckets": [

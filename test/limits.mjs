@@ -2,7 +2,7 @@ import {Miniflare,convertV4MiniflareOptions,Log,LogLevel} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 export async function limitTests(options) {
- const next={...options,name:'limit-test',bindings:{...options.bindings,MAX_ROOMS:'1',MAX_MEMBERS:'2',MAX_IDENTITIES:'4',MAX_GLOBAL_ROOMS:'2'},ratelimits:{REGISTER_LIMITER:{namespace_id:'2001',simple:{limit:10,period:60}},MESSAGE_LIMITER:{namespace_id:'2002',simple:{limit:1,period:60}},ROOM_LIMITER:{namespace_id:'2003',simple:{limit:2,period:60}},POLL_LIMITER:{namespace_id:'2004',simple:{limit:1,period:60}}}};
+ const next={...options,name:'limit-test',bindings:{...options.bindings,MAX_ROOMS:'1',MAX_MEMBERS:'2',MAX_IDENTITIES:'4',MAX_GLOBAL_ROOMS:'2'},ratelimits:{REGISTER_LIMITER:{namespace_id:'2001',simple:{limit:10,period:60}},MESSAGE_LIMITER:{namespace_id:'2002',simple:{limit:1,period:60}},ROOM_LIMITER:{namespace_id:'2003',simple:{limit:2,period:60}},POLL_LIMITER:{namespace_id:'2004',simple:{limit:1,period:60}},AUTHORIZE_LIMITER:{namespace_id:'2005',simple:{limit:10000,period:60}}}};
  const mf=new Miniflare(convertV4MiniflareOptions(next));let count=0;
  const ok=(v,label)=>{assert.ok(v,label);count++;console.log(`PASS ${label}`);};
  try {

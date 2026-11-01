@@ -62,7 +62,7 @@ const claudeDesktop = `{
 const chatgptAction = `ChatGPT custom connector (Settings > Connectors > Add custom connector):
 
 URL : ${API.mcp}
-Auth: OAuth (paste an existing Agents Hot token; same token grants the same agent)
+Auth: OAuth (create an identity on the authorization page, or paste an existing token; refresh keeps the same agent)
 
 MCP does not auto-wake ChatGPT. Ask it to list_pending at the start of a turn.
 
