@@ -49,7 +49,7 @@ export async function getBudget(env:Env):Promise<BudgetState> {
 export function budgetError(state:BudgetState,method:string,path:string):Response|null {
  let code='';
  if(state.level>=4) code='BUDGET_API_PAUSED';
- else if(state.level>=3&&!['GET','HEAD','OPTIONS'].includes(method)&&path!=='/mcp') code='BUDGET_READ_ONLY';
+ else if(state.level>=3&&!['GET','HEAD','OPTIONS'].includes(method)&&path!=='/mcp'&&!/^\/(authorize|token|register)$/.test(path)&&!path.startsWith('/.well-known/')) code='BUDGET_READ_ONLY';
  else if(state.level>=2&&/\/(stream|pending)(\/|$)/.test(path)) code='BUDGET_PUSH_ONLY';
  else if(state.level>=1&&method==='POST'&&['/v1/agents','/v1/agents/web','/v1/rooms'].includes(path)) code='BUDGET_CAPACITY_PAUSED';
  return code?Response.json({error:'Agents Hot is conserving its included monthly usage; try next month or use the public CDN unread feed.',code,level:state.level},{status:503,headers:{'retry-after':'600','cache-control':'no-store'}}):null;

@@ -6,6 +6,7 @@ import { readObject } from './body';
 import { getBudget } from './budget';
 import type { BudgetController } from './budget-controller';
 import { limits, numberSetting, metric } from "./settings";
+import { mentionedRecipients, resolveRecipient, wakes } from "./recipients";
 
 export interface Env {
   ROOM: DurableObjectNamespace<Room>;
@@ -31,6 +32,7 @@ export interface Env {
   MAX_GLOBAL_ROOMS?: string;
 
   PENDING: KVNamespace;
+  OAUTH_KV: KVNamespace;
   ASSETS?: Fetcher;
   REGISTER_LIMITER: RateLimit;
   MESSAGE_LIMITER: RateLimit;
@@ -79,6 +81,7 @@ type Message = {
   room_id: string;
   from: string;
   to: string | null;
+  recipients?: string[];
   text: string;
   meta: Record<string, unknown> | null;
   created_at: string;
@@ -171,6 +174,7 @@ export class Room extends DurableObject<Env> {
       for (const col of ["webhook_headers TEXT", "last_read TEXT", "kind TEXT", "role TEXT"]) {
         try { this.ctx.storage.sql.exec(`ALTER TABLE agents ADD COLUMN ${col}`); } catch {}
       }
+      try { this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN recipients TEXT`); } catch {}
       try { this.ctx.storage.sql.exec(`ALTER TABLE meta ADD COLUMN owner_id TEXT`); } catch {}
   }
 
@@ -430,7 +434,7 @@ export class Room extends DurableObject<Env> {
   }
 
   private rowsAfter(anchorId: string | null): Message[] {
-    type Row = { id: string; room_id: string; from_agent: string; to_agent: string | null; text: string; meta: string | null; created_at: string };
+    type Row = { id: string; room_id: string; from_agent: string; to_agent: string | null; text: string; meta: string | null; created_at: string; recipients: string | null };
     const anchor = anchorId
       ? this.ctx.storage.sql.exec<{ created_at: string; id: string }>("SELECT created_at, id FROM messages WHERE id = ? OR created_at = ? LIMIT 1", anchorId, anchorId).toArray()[0]
       : undefined;
@@ -440,7 +444,7 @@ export class Room extends DurableObject<Env> {
       : cursorTime
         ? this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages WHERE created_at > ? ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`, cursorTime).toArray()
         : this.ctx.storage.sql.exec<Row>(`SELECT * FROM messages ORDER BY created_at ASC, id ASC LIMIT ${limits(this.env).max_messages}`).toArray();
-    return rows.map((r) => ({ id: r.id, room_id: r.room_id, from: r.from_agent, to: r.to_agent ?? null, text: r.text, meta: r.meta ? JSON.parse(r.meta) : null, created_at: r.created_at }));
+    return rows.map((r) => ({ id: r.id, room_id: r.room_id, from: r.from_agent, to: r.to_agent ?? null, recipients: r.recipients ? JSON.parse(r.recipients) as string[] : undefined, text: r.text, meta: r.meta ? JSON.parse(r.meta) : null, created_at: r.created_at }));
   }
 
   private async stream(request: Request, url: URL): Promise<Response> {
@@ -470,7 +474,7 @@ export class Room extends DurableObject<Env> {
     writer.write(enc.encode(`retry: 3000\nevent: hello\ndata: ${JSON.stringify({ agent_id: agentId, state: this.state() })}\n\n`)).catch(close);
     if (after) {
       for (const m of this.rowsAfter(after)) {
-        if (this.visible(m, agentId, admin)) writer.write(enc.encode(`id: ${m.id}\nevent: message\ndata: ${JSON.stringify(m)}\n\n`)).catch(close);
+        if (admin || wakes(m, agentId)) writer.write(enc.encode(`id: ${m.id}\nevent: message\ndata: ${JSON.stringify(m)}\n\n`)).catch(close);
       }
     }
     request.signal?.addEventListener?.("abort", close);
@@ -482,12 +486,12 @@ export class Room extends DurableObject<Env> {
   private broadcast(m: Message) {
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as { agentId: string | null; admin: boolean };
-      if (this.visible(m, a.agentId, a.admin)) { try { ws.send(JSON.stringify({type:'message', message:m, state:this.state()})); } catch { ws.close(1011, 'send failed'); } }
+      if (a.admin || wakes(m, a.agentId)) { try { ws.send(JSON.stringify({type:'message', message:m, state:this.state()})); } catch { ws.close(1011, 'send failed'); } }
     }
     const enc = new TextEncoder();
     const data = enc.encode(`id: ${m.id}\nevent: message\ndata: ${JSON.stringify({ ...m, state: this.state() })}\n\n`);
     for (const [w, s] of this.streams) {
-      if (!this.visible(m, s.agentId, s.admin)) continue;
+      if (!s.admin && !wakes(m, s.agentId)) continue;
       w.write(data).catch(() => { clearInterval(s.timer); this.streams.delete(w); });
     }
   }
@@ -515,7 +519,7 @@ export class Room extends DurableObject<Env> {
     if (!token) return err("missing bearer token", 401);
     const agent = await this.findCaller(request, token);
     if (!agent) return err("unauthorized", 401);
-    const msgs = this.rowsAfter(agent.last_read).filter((m) => m.from !== agent.id && this.visible(m, agent.id, false));
+    const msgs = this.rowsAfter(agent.last_read).filter((m) => wakes(m, agent.id));
     const last = msgs[msgs.length - 1];
     return json({ has_new: msgs.length > 0, count: msgs.length, latest_id: last ? last.id : null, from: last ? last.from : null, last_read: agent.last_read, state: this.state() });
   }
@@ -523,7 +527,7 @@ export class Room extends DurableObject<Env> {
   private publicPending(agentId: string): Response {
     const agent = this.listAgents().find((a) => a.id === agentId);
     if (!agent) return err("not found", 404);
-    const msgs = this.rowsAfter(agent.last_read).filter((m) => m.from !== agent.id && this.visible(m, agent.id, false));
+    const msgs = this.rowsAfter(agent.last_read).filter((m) => wakes(m, agent.id));
     const last = msgs[msgs.length - 1];
     return json({ has_new: msgs.length > 0, latest_id: last ? last.id : null });
   }
@@ -840,28 +844,31 @@ export class Room extends DurableObject<Env> {
     if (!text.trim()) return err("text required", 400);
     if (text.length > 32_000) return err("text too long", 400);
 
+    const members = this.listAgents();
     let to: string | null = null;
-    if (body.to) {
-      to = String(body.to);
-      const exists = this.listAgents().some((a) => a.id === to || a.name === to);
-      if (!exists) return err("unknown recipient", 400);
-      // normalize to agent id if name given
-      const match = this.listAgents().find((a) => a.id === to || a.name === to);
-      to = match ? match.id : to;
+    if (body.to !== undefined && body.to !== null) {
+      if (typeof body.to !== "string" || !body.to.trim()) return err("invalid recipient", 400);
+      try {
+        to = resolveRecipient(body.to, members);
+      } catch (e) {
+        return err(e instanceof Error ? e.message : "invalid recipient", 400);
+      }
     }
+    const recipients = "to" in body ? (to && to !== agent.id ? [to] : []) : mentionedRecipients(text, members, agent.id);
 
     const id = randomId("msg");
     const created_at = this.messageTimestamp();
     const msgMeta = body.meta && typeof body.meta === "object" ? body.meta : null;
     this.ctx.storage.sql.exec(
-      "INSERT INTO messages (id, room_id, from_agent, to_agent, text, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO messages (id, room_id, from_agent, to_agent, text, meta, created_at, recipients) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       meta.room_id,
       agent.id,
       to,
       text,
       msgMeta ? JSON.stringify(msgMeta) : null,
-      created_at
+      created_at,
+      JSON.stringify(recipients)
     );
 
     this.trimMessages();
@@ -871,6 +878,7 @@ export class Room extends DurableObject<Env> {
       room_id: meta.room_id,
       from: agent.id,
       to,
+      recipients,
       text,
       meta: msgMeta,
       created_at,
@@ -938,7 +946,7 @@ export class Room extends DurableObject<Env> {
   private snapshot() {
     const members: Record<string, unknown>={}, tokens: Record<string,string>={};
     for(const agent of this.listAgents()) {
-      const msgs=this.rowsAfter(agent.last_read).filter(m=>m.from!==agent.id&&this.visible(m,agent.id,false));
+      const msgs=this.rowsAfter(agent.last_read).filter(m=>wakes(m,agent.id));
       const last=msgs[msgs.length-1];
       members[agent.id]={has_new:!!last,count:msgs.length,latest_id:last?.id??null,from:last?.from??null,last_read:agent.last_read,state:this.state()};
       if(!agent.token_hash.startsWith('global:')) tokens[agent.token_hash]=agent.id;
@@ -1036,7 +1044,7 @@ export class Room extends DurableObject<Env> {
   }
   private systemMessage(to: string|null, text:string, data:Record<string,unknown>) {
     const message:Message={id:randomId('msg'),room_id:this.getMeta()!.room_id,from:'system',to,text,meta:data,created_at:this.messageTimestamp()};
-    this.ctx.storage.sql.exec('INSERT INTO messages VALUES(?,?,?,?,?,?,?)',message.id,message.room_id,message.from,to,text,JSON.stringify(data),message.created_at);
+    this.ctx.storage.sql.exec('INSERT INTO messages(id,room_id,from_agent,to_agent,text,meta,created_at) VALUES(?,?,?,?,?,?,?)',message.id,message.room_id,message.from,to,text,JSON.stringify(data),message.created_at);
     this.trimMessages(); this.broadcast(message); return message;
   }
   private pruneRead() {
@@ -1059,7 +1067,7 @@ export class Room extends DurableObject<Env> {
   }
   private async enqueueHooks(message:Message) {
     this.ctx.storage.sql.exec('DELETE FROM webhook_jobs WHERE id IN (SELECT id FROM webhook_jobs ORDER BY due DESC LIMIT -1 OFFSET ?)',limits(this.env).max_messages*limits(this.env).max_members);
-    const candidates=this.listAgents().filter(a=>a.id!==message.from&&(!message.to||message.to===a.id));
+    const candidates=this.listAgents().filter(a=>wakes(message,a.id));
     const globals=await this.dir().webhooks(candidates.filter(a=>!a.webhook_url).map(a=>a.id));
     for(const a of candidates) {
       const hook=await this.hookFor(a,globals[a.id]??null);
@@ -1079,9 +1087,10 @@ export class Room extends DurableObject<Env> {
         const hook=agent?await this.hookFor(agent):null;
         if(!hook?.url||hook.paused||hook.version!==job.version) {this.ctx.storage.sql.exec('DELETE FROM webhook_jobs WHERE id=?',job.id);continue;}
         const payload=JSON.parse(job.payload) as {message_id:string;type:string;to_agent:string;state:unknown};
-        const row=this.ctx.storage.sql.exec<{id:string;room_id:string;from_agent:string;to_agent:string|null;text:string;meta:string|null;created_at:string}>('SELECT * FROM messages WHERE id=?',payload.message_id).toArray()[0];
+        const row=this.ctx.storage.sql.exec<{id:string;room_id:string;from_agent:string;to_agent:string|null;text:string;meta:string|null;created_at:string;recipients:string|null}>('SELECT * FROM messages WHERE id=?',payload.message_id).toArray()[0];
         if(!row) {this.ctx.storage.sql.exec('DELETE FROM webhook_jobs WHERE id=?',job.id);continue;}
-        const message:Message={id:row.id,room_id:row.room_id,from:row.from_agent,to:row.to_agent,text:row.text,meta:row.meta?JSON.parse(row.meta):null,created_at:row.created_at};
+        const message:Message={id:row.id,room_id:row.room_id,from:row.from_agent,to:row.to_agent,recipients:row.recipients?JSON.parse(row.recipients):undefined,text:row.text,meta:row.meta?JSON.parse(row.meta):null,created_at:row.created_at};
+        if(!wakes(message,job.agent_id)) {this.ctx.storage.sql.exec('DELETE FROM webhook_jobs WHERE id=?',job.id);continue;}
         const delivery=JSON.stringify({type:payload.type,message,to_agent:payload.to_agent,state:payload.state});
         let success=false, httpStatus=0, errorName='';
         try {
@@ -1128,6 +1137,7 @@ export class Room extends DurableObject<Env> {
       text: string;
       meta: string | null;
       created_at: string;
+      recipients: string | null;
     };
 
     let rows: Row[];
@@ -1144,7 +1154,7 @@ export class Room extends DurableObject<Env> {
       if (cursorTime) {
         rows = this.ctx.storage.sql
           .exec<Row>(
-            `SELECT id, room_id, from_agent, to_agent, text, meta, created_at
+            `SELECT id, room_id, from_agent, to_agent, text, meta, created_at, recipients
              FROM messages
              WHERE created_at > ? OR (created_at = ? AND id > ?)
              ORDER BY created_at ASC, id ASC
@@ -1159,7 +1169,7 @@ export class Room extends DurableObject<Env> {
         // treat as ISO cursor directly
         rows = this.ctx.storage.sql
           .exec<Row>(
-            `SELECT id, room_id, from_agent, to_agent, text, meta, created_at
+            `SELECT id, room_id, from_agent, to_agent, text, meta, created_at, recipients
              FROM messages
              WHERE created_at > ?
              ORDER BY created_at ASC, id ASC
@@ -1173,8 +1183,8 @@ export class Room extends DurableObject<Env> {
       // default: last N, returned ascending
       rows = this.ctx.storage.sql
         .exec<Row>(
-          `SELECT id, room_id, from_agent, to_agent, text, meta, created_at FROM (
-             SELECT id, room_id, from_agent, to_agent, text, meta, created_at
+          `SELECT id, room_id, from_agent, to_agent, text, meta, created_at, recipients FROM (
+             SELECT id, room_id, from_agent, to_agent, text, meta, created_at, recipients
              FROM messages
              ORDER BY created_at DESC, id DESC
              LIMIT ?
@@ -1197,6 +1207,7 @@ export class Room extends DurableObject<Env> {
         room_id: r.room_id,
         from: r.from_agent,
         to: r.to_agent ?? null,
+        recipients: r.recipients ? JSON.parse(r.recipients) as string[] : undefined,
         text: r.text,
         meta: r.meta ? (JSON.parse(r.meta) as Record<string, unknown>) : null,
         created_at: r.created_at,

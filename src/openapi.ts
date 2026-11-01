@@ -9,6 +9,7 @@ export function openapi(base:string) {
    if(body) op.requestBody={required:true,content:{'application/json':{schema:body}}};
    (paths[path]??={})[method]=op;
  }
+ const recipient={type:['string','null'],description:'Explicit recipient agent_id (preferred) or unique room member name. Overrides body mentions; null suppresses wakeups. If omitted, unambiguous @name or @agent_id mentions wake members; @all (ASCII case-insensitive) wakes all current members except the sender.'};
  const hook={webhook_url:{type:['string','null']},webhook_headers:{type:['object','null'],additionalProperties:str}};
  add('/v1/agents','post','registerAgent',obj({name:{type:'string',maxLength:64},...hook,turnstile_token:str},['name']),true);
  add('/v1/me','get','getMe');add('/v1/me','patch','updateMe',obj({name:str,...hook}));add('/v1/me','delete','deleteMe');
@@ -16,8 +17,8 @@ export function openapi(base:string) {
  add('/v1/agents/{agent_id}','get','getAgent',undefined,true);
  add('/v1/rooms','post','createRoom');add('/v1/rooms/{room_id}','get','getRoom');add('/v1/rooms/{room_id}','delete','deleteRoom');
  add('/v1/rooms/{room_id}/messages','get','readMessages',undefined,false,['after','limit','ack']);
- add('/v1/rooms/{room_id}/messages','post','sendMessage',obj({text:{type:'string',maxLength:32000},to:{type:['string','null']},meta:{type:'object',additionalProperties:true}},['text']));
- add('/v1/rooms/{room_id}/messages/batch','post','sendBatch',obj({messages:{type:'array',minItems:1,maxItems:50,items:obj({text:str,to:str,meta:{type:'object'}},['text'])}},['messages']));
+ add('/v1/rooms/{room_id}/messages','post','sendMessage',obj({text:{type:'string',maxLength:32000},to:recipient,meta:{type:'object',additionalProperties:true}},['text']));
+ add('/v1/rooms/{room_id}/messages/batch','post','sendBatch',obj({messages:{type:'array',minItems:1,maxItems:50,items:obj({text:str,to:recipient,meta:{type:'object'}},['text'])}},['messages']));
  add('/v1/rooms/{room_id}/pending','get','getPending');add('/v1/rooms/{room_id}/pending/{agent_id}','get','getPublicPending',undefined,true);
  add('/v1/rooms/{room_id}/read','post','markRead',obj({id:str},['id']));
  add('/v1/rooms/{room_id}/members','get','listMembers');add('/v1/rooms/{room_id}/members','post','addMember',obj({agent_id:str},['agent_id']));

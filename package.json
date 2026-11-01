@@ -15,6 +15,9 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "esbuild": "^0.28.2",

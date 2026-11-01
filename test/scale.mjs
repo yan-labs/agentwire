@@ -43,7 +43,8 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  ok((await call('POST','/mcp',null,{})).status===401,'MCP requires identity token');
  ok((await call('POST','/mcp',A.token,{jsonrpc:'2.0',id:1,method:'ping'},{origin:'https://evil.invalid'})).status===403,'MCP rejects invalid Origin');
  ok((await rpc('initialize',{protocolVersion:'2025-06-18'})).result.serverInfo.name==='Agents Hot','MCP initialize Streamable HTTP');
- ok((await rpc('tools/list')).result.tools.length===8,'MCP exposes all eight required tools');
+ const listed=(await rpc('tools/list')).result.tools.map(t=>t.name);
+ ok(['me','rooms','read_messages','send_message','pending','list_pending','ack','create_room','create_invite','list_invites','revoke_invite','accept_invite','get_room','list_members','add_member','remove_member','set_webhook'].every(n=>listed.includes(n)),'MCP exposes message and room tools');
  for(const name of ['me','rooms']) ok(!(await rpc('tools/call',{name})).result.isError,`MCP tool ${name}`);
  ok((await rpc('tools/call',{name:'send_message',arguments:{room_id:R,text:4}})).error.code===-32602,'MCP validates arguments');
  ok(!(await rpc('tools/call',{name:'send_message',arguments:{room_id:R,text:'via MCP'}})).result.isError,'MCP sends message through existing permissions');
@@ -55,6 +56,23 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  ok(!mcpinvite.result.isError,'MCP creates invite');
  const code=JSON.parse(mcpinvite.result.content[0].text).code;
  ok(!(await rpc('tools/call',{name:'accept_invite',arguments:{code}})).result.isError,'MCP accepts invite');
+ ok(!(await rpc('tools/call',{name:'get_room',arguments:{room_id:R}})).result.isError,'MCP get_room');
+ ok(!(await rpc('tools/call',{name:'list_members',arguments:{room_id:R}})).result.isError,'MCP list_members');
+ const ackId=(await call('GET',path+'/messages',A.token)).data.messages.at(-1).id;
+ ok(!(await rpc('tools/call',{name:'ack',arguments:{room_id:R,id:ackId}})).result.isError,'MCP ack marks processed');
+ const silent=await call('POST',path+'/messages',A.token,{text:'no mention, no to'});
+ ok(silent.status===201&&Array.isArray(silent.data.message.recipients)&&silent.data.message.recipients.length===0,'omitted to without @mention stores empty recipients');
+ const named=await call('POST',path+'/messages',A.token,{text:'ping @scale-b'});
+ ok(named.status===201&&named.data.message.recipients.includes(B.agent_id),'@name mention wakes that member');
+ const all=await call('POST',path+'/messages',A.token,{text:'standup @all'});
+ ok(all.status===201&&all.data.message.recipients.includes(B.agent_id),'@all wakes other current members');
+ const directed=await call('POST',path+'/messages',A.token,{text:'secret @all',to:B.agent_id});
+ ok(directed.status===201&&directed.data.message.to===B.agent_id&&JSON.stringify(directed.data.message.recipients)===JSON.stringify([B.agent_id]),'explicit to overrides @mentions');
+ const suppressed=await call('POST',path+'/messages',A.token,{text:'quiet @all',to:null});
+ ok(suppressed.status===201&&suppressed.data.message.recipients.length===0,'explicit null to suppresses wakeups');
+ ok((await call('POST',path+'/messages',A.token,{text:'nope',to:'nobody'})).status===400,'unknown recipient rejected');
+ const pendingMine=await rpc('tools/call',{name:'list_pending',arguments:{room_id:R}});
+ ok(!pendingMine.result.isError&&pendingMine.result.content[0].text.includes(R),'MCP list_pending per room');
  const operatorVictim=await register('operator-delete');
  ok((await call('DELETE','/v1/admin/agents/'+operatorVictim.agent_id,'test-only-operator')).status===200&&(await call('GET','/v1/me',operatorVictim.token)).status===401,'operator identity deletion');
  const before=await call('GET','/v1/me',C.token);
@@ -78,6 +96,7 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  ok((await call('POST',path+'/messages',A.token,{text:'x'.repeat(32001)})).status===400,'32000 character limit preserved');
  ok((await call('POST',path+'/messages',A.token,{text:'bounded',meta:{data:'x'.repeat(17000)}})).status===400,'metadata storage bound');
  ok((await call('POST','/v1/agents',null,{name:'oversize',extra:'x'.repeat(140000)})).status===400,'streamed request size bound');
+ await call('POST',path+'/messages',A.token,{text:'@all unread ping'});
  await until(async()=>{const obj=await (await mf.getR2Bucket('UNREAD')).get(`${R}/${B.agent_id}.json`);return obj&&(await obj.json()).has_new;},'R2 unread feed');
  const bucket=await mf.getR2Bucket('UNREAD'), beforeObject=await bucket.head(`${R}/${B.agent_id}.json`);
  ok(beforeObject.httpMetadata.cacheControl==='public, max-age=60','R2 CDN cache metadata');
@@ -96,7 +115,7 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  const readRoom=(await call('POST','/v1/rooms',A.token)).data.room_id;
  await call('POST',`/v1/rooms/${readRoom}/members`,A.token,{agent_id:B.agent_id});
  await sleep(1200);
- const unreadMessage=(await call('POST',`/v1/rooms/${readRoom}/messages`,A.token,{text:'clear unread'})).data.message;
+ const unreadMessage=(await call('POST',`/v1/rooms/${readRoom}/messages`,A.token,{text:'clear unread @all'})).data.message;
  await until(async()=>{const o=await bucket.get(`${readRoom}/${B.agent_id}.json`);return o&&(await o.json()).has_new;},'R2 true transition');
  await call('POST',`/v1/rooms/${readRoom}/read`,A.token,{id:unreadMessage.id});
  await call('POST',`/v1/rooms/${readRoom}/read`,B.token,{id:unreadMessage.id});
@@ -107,8 +126,8 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  const ws=wsRes.webSocket;ws.accept();
  const pushed=[];ws.addEventListener('message',e=>{try{pushed.push(JSON.parse(e.data));}catch{}});
  await mf.unsafeEvictDurableObject('agentwire-test','Room',{name:R,webSockets:'hibernate'});
- await call('POST',path+'/messages',B.token,{text:'after hibernation'});
- await until(()=>pushed.some(x=>x.message?.text==='after hibernation'),'WebSocket push after hibernation');
+ await call('POST',path+'/messages',B.token,{text:'after hibernation @all'});
+ await until(()=>pushed.some(x=>x.message?.text==='after hibernation @all'),'WebSocket push after hibernation');
  ok(true,'WebSocket restores attachment after eviction');
  await call('POST',path+'/messages',B.token,{text:'private to beta',to:B.agent_id});await sleep(100);
  ok(!pushed.some(x=>x.message?.text==='private to beta'),'WebSocket filters private recipients');ws.close();
@@ -117,14 +136,14 @@ export async function scaleTests({mf,db,base,getHookAttempts,getTurnstileCalls})
  while(Date.now()-started<4000){const part=await reader.read();if(part.done){eof=true;break;}}
  ok(eof&&Date.now()-started<4000,'SSE expires at configured duration');
  await call('PATCH','/v1/me',B.token,{webhook_url:'https://hook.invalid/fail'});
- const count=getHookAttempts();await call('POST',path+'/messages',A.token,{text:'retry this'});
+ const count=getHookAttempts();await call('POST',path+'/messages',A.token,{text:'retry this',to:B.agent_id});
  await until(async()=>(await call('GET','/v1/me',B.token)).data.webhook_paused,'webhook pauses after exponential retries');
  ok(getHookAttempts()-count===3,'webhook retries and pauses at threshold');
  ok((await call('GET',path+'/messages',B.token)).data.messages.some(m=>m.meta?.type==='webhook_paused'),'webhook pause delivered as unread system message');
  await call('PATCH','/v1/me',B.token,{webhook_url:null});
  ok(!(await call('GET','/v1/me',B.token)).data.webhook_paused,'PATCH webhook restores paused state');
  await call('PATCH',path+'/agents/me',B.token,{webhook_url:'https://hook.invalid/room'});
- await call('POST',path+'/messages',A.token,{text:'room override retry'});
+ await call('POST',path+'/messages',A.token,{text:'room override retry',to:B.agent_id});
  await until(async()=>(await call('GET','/v1/me',B.token)).data.paused_room_webhooks.includes(R),'room webhook pause');
  ok(true,'GET me exposes paused room override');
  await call('PATCH',path+'/agents/me',B.token,{webhook_url:null});

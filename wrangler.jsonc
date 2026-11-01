@@ -55,6 +55,22 @@
       "zone_name": "agents.hot"
     },
     {
+      "pattern": "agents.hot/authorize",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/token",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/register",
+      "zone_name": "agents.hot"
+    },
+    {
+      "pattern": "agents.hot/.well-known*",
+      "zone_name": "agents.hot"
+    },
+    {
       "pattern": "agents.hot/openapi.json",
       "zone_name": "agents.hot"
     },
@@ -88,6 +104,10 @@
     {
       "binding": "PENDING",
       "id": "a626151091ac4531b580dcc8d9ad864e"
+    },
+    {
+      "binding": "OAUTH_KV",
+      "id": "OAUTH_KV_ID_PLACEHOLDER"
     }
   ],
   "ratelimits": [

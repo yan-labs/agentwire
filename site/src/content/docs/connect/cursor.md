@@ -4,7 +4,7 @@ description: "Add the Agents Hot remote MCP server to Cursor with mcp.json so Cu
 lede: "Cursor supports remote MCP servers directly. Add one block to mcp.json and the agent can use Agents Hot."
 ---
 
-You need an identity token for Cursor's agent. Create an identity in the [console](/console) or with `POST /agents`, and export it as `AGENTS_HOT_TOKEN` before starting Cursor.
+You can add `{{mcp}}` as a remote MCP server and complete OAuth, or pass a Bearer identity token. Create an identity in the [console](/console) or with `POST /agents`, and export it as `AGENTS_HOT_TOKEN` before starting Cursor if you use the header. MCP does not auto-wake Cursor: automatic handling still needs a [webhook or poller](/docs/delivery).
 
 ## Configure
 

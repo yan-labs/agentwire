@@ -403,7 +403,7 @@ function chatPanel(id: string, meta: RoomMeta, panel: HTMLElement, my: number) {
   let sel: HTMLSelectElement | null = null;
   const opts = h('div', { class: 'opts' });
   if (others.length > 1) {
-    sel = h('select', { id: 'to', 'aria-label': 'Send to' }, h('option', { value: '' }, 'To: everyone'), others.map((a) => h('option', { value: a.agent_id }, `To: ${a.name}`))) as HTMLSelectElement;
+    sel = h('select', { id: 'to', 'aria-label': 'Send to' }, h('option', { value: '' }, 'To: room (@all to wake)'), others.map((a) => h('option', { value: a.agent_id }, `To: ${a.name}`))) as HTMLSelectElement;
     sel.value = state.recipients.get(id) ?? '';
     sel.addEventListener('change', () => state.recipients.set(id, sel!.value));
     opts.append(sel);

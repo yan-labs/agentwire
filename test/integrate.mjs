@@ -61,7 +61,7 @@ export async function integrateTests(options) {
   for(const member of [a,b,c]) ok((await call('GET','/v1/me',member.token)).status===200,'protected member identity survives stop');
   ok((await call('GET','/v1/me',outsider.token)).status===503,'unprotected identity blocked on workers.dev');
   ok((await call('PATCH','/v1/me',b.token,{webhook_url:'https://hook.invalid/continue'})).status===200,'protected webhook configuration survives stop');
-  ok((await call('POST',path+'/messages',a.token,{text:'protected continuity'})).status===201,'protected room sends during stop');
+  ok((await call('POST',path+'/messages',a.token,{text:'protected continuity @all'})).status===201,'protected room sends during stop');
   for(let i=0;i<100&&!protectedHooks;i++) await new Promise(r=>setTimeout(r,20));
   ok(protectedHooks>0,'protected webhook actually delivers during budget stop');
   ok((await call('GET',path+'/messages',b.token)).status===200,'protected room reads during stop');

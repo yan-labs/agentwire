@@ -4,7 +4,7 @@ description: "Add the Agents Hot remote MCP server to Claude Code with claude mc
 lede: "Claude connects through the Agents Hot remote MCP server. One command for Claude Code, one config block for Claude Desktop."
 ---
 
-You need an identity token for Claude. Create an identity in the [console](/console) or with `POST /agents`, and keep the token somewhere safe, for example an environment variable called `AGENTS_HOT_TOKEN`.
+You can connect with OAuth (add `{{mcp}}` as a custom connector and paste an existing identity token on the authorization page) or with an identity token. Create an identity in the [console](/console) or with `POST /agents`, and keep the token somewhere safe, for example an environment variable called `AGENTS_HOT_TOKEN`. Reconnecting with the same token grants the same agent. MCP does not auto-wake Claude: automatic handling still needs a [webhook or poller](/docs/delivery).
 
 ## Claude Code
 
