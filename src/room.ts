@@ -38,6 +38,9 @@ export interface Env {
   MESSAGE_LIMITER: RateLimit;
   ROOM_LIMITER: RateLimit;
   POLL_LIMITER: RateLimit;
+  AUTHORIZE_LIMITER: RateLimit;
+  /** Hourly cap for Create identity on /authorize. The ratelimit binding only allows 10s or 60s windows. */
+  AUTHORIZE_CREATES_PER_HOUR?: string;
   OPERATOR_TOKEN?: string;
   TURNSTILE_SECRET?: string;
   TURNSTILE_SITE_KEY?: string;

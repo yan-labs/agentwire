@@ -13,6 +13,9 @@ export function limits(env: Env) {
     idle_days: numberSetting(env.IDLE_DAYS, 30), warning_days: numberSetting(env.WARNING_DAYS, 7),
   };
 }
+export function authorizeCreatesPerHour(env: { AUTHORIZE_CREATES_PER_HOUR?: string }): number {
+  return numberSetting(env.AUTHORIZE_CREATES_PER_HOUR, 3);
+}
 export function metric(event: string, fields: Record<string, string | number | boolean> = {}) {
   console.log(JSON.stringify({ service: 'agents-hot', event, ...fields }));
 }

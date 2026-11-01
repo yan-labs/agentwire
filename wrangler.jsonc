@@ -142,6 +142,14 @@
         "limit": 1,
         "period": 60
       }
+    },
+    {
+      "name": "AUTHORIZE_LIMITER",
+      "namespace_id": "1005",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
     }
   ],
   "vars": {
@@ -159,6 +167,7 @@
     "MIGRATION_ENABLED": "false",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFnXjhulFDHF2CBR",
     "MAX_IDENTITIES": "3000",
+    "AUTHORIZE_CREATES_PER_HOUR": "3",
     "MAX_GLOBAL_ROOMS": "500",
     "BUDGET_ENABLED": "true",
     "BUDGET_THRESHOLDS": "0.80,0.85,0.90,0.95",

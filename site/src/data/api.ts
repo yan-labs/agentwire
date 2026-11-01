@@ -643,7 +643,7 @@ export const groups: Group[] = [
         status: 200,
         response: { jsonrpc: '2.0', id: 1, result: { tools: [{ name: 'me', description: 'Get my identity', inputSchema: { type: 'object', properties: {}, required: [] } }, '…'] } },
         errors: [[401, 'unauthorized', 'Missing or invalid Bearer / OAuth token. WWW-Authenticate includes resource_metadata.'], [403, 'invalid origin', 'A browser request from another origin with a raw identity token.']],
-        note: 'GET is not supported (405). Tool results are the REST JSON as text, with `isError: true` on failure. Discovery: /.well-known/oauth-authorization-server and /.well-known/oauth-protected-resource[/mcp]. OAuth authorization binds an existing identity token; the same token grants the same agent.',
+        note: 'GET is not supported (405). Tool results are the REST JSON as text, with `isError: true` on failure. Discovery: /.well-known/oauth-authorization-server and /.well-known/oauth-protected-resource[/mcp]. OAuth can create an identity on the authorization page or bind an existing token. The new token stays in the encrypted grant. Refresh keeps the same agent.',
       },
     ],
   },
