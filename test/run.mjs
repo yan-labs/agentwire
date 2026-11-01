@@ -10,7 +10,7 @@ await build({entryPoints:['src/index.ts'],outfile:'/tmp/aw-deploy/test-worker.mj
 let hookAttempts=0, turnstileCalls=0;
 const options={
  unsafeInspectDurableObjects:true,name:'agentwire-test',modules:true,modulesRoot:'/tmp/aw-deploy',scriptPath:'/tmp/aw-deploy/test-worker.mjs',compatibilityDate:'2026-05-03',compatibilityFlags:['nodejs_compat'],cf:false,port:0,log:new Log(LogLevel.ERROR),
- durableObjects:{ROOM:{className:'Room',useSQLite:true},DIRECTORY:{className:'Directory',useSQLite:true},BUDGET_CONTROL:{className:'BudgetController',useSQLite:true}},d1Databases:['DB'],kvNamespaces:['PENDING','OAUTH_KV'],r2Buckets:['UNREAD'],
+ durableObjects:{EVENT_HUB:{className:'EventHub',useSQLite:true},ROOM:{className:'Room',useSQLite:true},DIRECTORY:{className:'Directory',useSQLite:true},BUDGET_CONTROL:{className:'BudgetController',useSQLite:true}},d1Databases:['DB'],kvNamespaces:['PENDING','OAUTH_KV'],r2Buckets:['UNREAD'],
  ratelimits:Object.fromEntries(config.ratelimits.map(r=>[r.name,{namespace_id:r.namespace_id,simple:r.simple}])),
  bindings:{...config.vars,OPERATOR_TOKEN:'test-only-operator',TURNSTILE_SECRET:'test-only-secret'},
  outboundService:async(req)=>{
@@ -33,6 +33,8 @@ try {
  await oauthTests({base});
  const {integrateTests}=await import('./integrate.mjs');
  await integrateTests(options);
+ const {eventsTests}=await import('./events.mjs');
+ await eventsTests(options);
  const {limitTests}=await import('./limits.mjs');
  await limitTests(options);
  console.log('ALL TEST SUITES PASS');
