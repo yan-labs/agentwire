@@ -155,7 +155,7 @@
     }
   ],
   "vars": {
-    "MCP_EVENTS_EGRESS": "off",
+    "MCP_EVENTS_EGRESS": "validated-fetch",
     "MAX_ROOMS": "50",
     "MAX_MEMBERS": "20",
     "MAX_MESSAGES": "50",
