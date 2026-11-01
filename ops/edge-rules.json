@@ -8,7 +8,7 @@
   },
   "reject_unknown_api_paths": {
     "action": "block",
-    "expression": "(http.host eq \"api.agents.hot\" and not (starts_with(http.request.uri.path, \"/internal/billing-\") or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\"))",
+    "expression": "(http.host eq \"api.agents.hot\" and not (starts_with(http.request.uri.path, \"/internal/billing-\") or starts_with(http.request.uri.path, \"/v1\") or starts_with(http.request.uri.path, \"/pending\") or http.request.uri.path eq \"/mcp\" or http.request.uri.path eq \"/openapi.json\" or http.request.uri.path eq \"/health\" or starts_with(http.request.uri.path, \"/.well-known/oauth-\") or http.request.uri.path in {\"/authorize\" \"/token\" \"/register\"}))",
     "enabled": true,
     "description": "Agents Hot reject non-API paths before Workers"
   },
