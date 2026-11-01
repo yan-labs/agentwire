@@ -2,6 +2,7 @@ import {readObject} from './body';
 import type { Env } from './room';
 import { directory } from './d1-directory';
 import { wakes } from './recipients';
+import { canonical, hash, validSecret, validUrl } from './event-hub';
 
 type Field = {type:string;description?:string;nullable?:boolean};
 type Tool = [string,string,string,string,Record<string,Field>,string[]];
@@ -44,7 +45,8 @@ export async function mcp(request:Request,env:Env,dispatch:(req:Request)=>Promis
  const origin=request.headers.get('origin');
  if(!options.allowCrossOrigin&&origin&&origin!==new URL(request.url).origin) return respond({error:'invalid origin'},403);
  const token=options.token||/^Bearer\s+(.+)$/i.exec(request.headers.get('authorization')||'')?.[1];
- if(!token||!await directory(env).resolve(token)) return new Response(JSON.stringify({error:'unauthorized'}),{status:401,headers:{'content-type':'application/json','www-authenticate':'Bearer realm="OAuth"'}});
+ const principal=token?await directory(env).resolve(token):null;
+ if(!token||!principal) return new Response(JSON.stringify({error:'unauthorized'}),{status:401,headers:{'content-type':'application/json','www-authenticate':'Bearer realm="OAuth"'}});
  if(request.method!=='POST') return new Response(null,{status:405,headers:{allow:'POST'}});
  let rpc:Record<string,unknown>;
  try {rpc=(await readObject(request))!;} catch {return respond({jsonrpc:'2.0',id:null,error:{code:-32700,message:'Parse error'}},400);}
@@ -54,7 +56,22 @@ export async function mcp(request:Request,env:Env,dispatch:(req:Request)=>Promis
  if(!('id' in rpc)) return respond(null,202);
  if(rpc.method==='initialize') {
    const p=rpc.params as {protocolVersion?:string}|undefined;
-   return reply({protocolVersion:['2025-03-26','2025-06-18','2025-11-25'].includes(p?.protocolVersion||'')?p!.protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'Agents Hot',version:'0.5.0'},instructions:'MCP does not auto-wake an agent. Automatic handling still needs a webhook trigger or a model-free poller. Prefer webhooks, then room WebSockets. Poll at most once per 60 seconds. Explicit to overrides @mentions; @all wakes every other current member; omitting to wakes only unambiguous @mentions.'});
+   return reply({protocolVersion:['2025-03-26','2025-06-18','2025-11-25'].includes(p?.protocolVersion||'')?p!.protocolVersion:'2025-06-18',capabilities:{tools:{},...(env.MCP_EVENTS_ENABLED!=='false'?{events:{}}:{})},serverInfo:{name:'Agents Hot',version:'0.5.0'},instructions:'MCP tools alone do not auto-wake an agent. MCP Events can deliver message.created when callback egress is enabled; otherwise use a webhook trigger or a model-free poller. Prefer webhooks, then room WebSockets. Poll at most once per 60 seconds. Explicit to overrides @mentions; @all wakes every other current member; omitting to wakes only unambiguous @mentions.'});
+ }
+ if(env.MCP_EVENTS_ENABLED!=='false'&&rpc.method==='events/list') return reply({events:[{name:'message.created',description:'A room message that wakes this agent.',delivery:['webhook'],inputSchema:{type:'object',properties:{room_id:{type:'string'}},additionalProperties:false},payloadSchema:{type:'object',properties:Object.fromEntries(['room_id','message_id','from_agent_id','from_name','text','created_at'].map(k=>[k,{type:'string'}])),required:['room_id','message_id','from_agent_id','from_name','text','created_at'],additionalProperties:false}}]});
+ if(env.MCP_EVENTS_ENABLED!=='false'&&(rpc.method==='events/subscribe'||rpc.method==='events/unsubscribe')) {
+  const p=rpc.params as {name?:unknown;arguments?:unknown;delivery?:{mode?:unknown;url?:unknown;secret?:unknown};ttlMs?:unknown;id?:unknown}|undefined;
+  const hub=env.EVENT_HUB.get(env.EVENT_HUB.idFromName(principal.id));
+  if(rpc.method==='events/unsubscribe'&&typeof p?.id==='string') {await hub.unsubscribe(p.id);return reply({});}
+  const args=p?.arguments??{};
+  if(p?.name!=='message.created'||!args||typeof args!=='object'||Array.isArray(args)||Object.keys(args).some(k=>k!=='room_id')||('room_id' in args&&(typeof args.room_id!=='string'||!args.room_id))||p.delivery?.mode!=='webhook'||!validUrl(p.delivery.url)) return error(-32602,'Invalid event arguments');
+  if(rpc.method==='events/subscribe'&&'room_id' in args&&!(await directory(env).rooms(principal.id)).some(r=>r.room_id===args.room_id)) return error(-32602,'Not a room member');
+  const id='sub_'+await hash(JSON.stringify([principal.id,p.delivery.url,p.name,canonical(args)]));
+  if(rpc.method==='events/unsubscribe') {await hub.unsubscribe(id);return reply({});}
+  if(!validSecret(p.delivery.secret)||!(p.ttlMs===undefined||p.ttlMs===null||typeof p.ttlMs==='number'&&Number.isInteger(p.ttlMs)&&p.ttlMs>=300000&&p.ttlMs<=604800000)) return error(-32602,'Invalid subscription');
+  const result=await hub.subscribe({id,owner:principal.id,name:p.name,args:canonical(args),url:p.delivery.url,secret:p.delivery.secret,ttl:p.ttlMs==null?(p.ttlMs===null?604800000:86400000):p.ttlMs as number});
+  if('reason' in result) return respond({jsonrpc:'2.0',id:rpc.id,error:{code:-32015,message:'CallbackEndpointError',data:{reason:result.reason}}});
+  return reply(result);
  }
  if(rpc.method==='ping') return reply({});
  if(rpc.method==='tools/list') return reply({tools:definitions.map(([name,description,,,properties,required])=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false}}))});

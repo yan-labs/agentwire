@@ -6,11 +6,12 @@ import { readObject } from './body';
 import { directory } from './d1-directory';
 import { limits, metric } from './settings';
 import { mcp } from './mcp';
+import { EventHub } from './event-hub';
 import { getBudget, budgetError } from './budget';
 import { openapi } from './openapi';
 import { BudgetController } from './budget-controller';
 import { authorize, isOAuthPath, oauthOriginOk, oauthProvider } from './oauth';
-export { Room, Directory, BudgetController };
+export { Room, Directory, BudgetController, EventHub };
 
 function isWorkerPath(pathname: string) {
   return /^\/(v1(?:\/|$)|mcp\/?$|openapi\.json$|pending(?:\/|$)|health$)/.test(pathname) || isOAuthPath(pathname);

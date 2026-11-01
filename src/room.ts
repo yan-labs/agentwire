@@ -1,3 +1,4 @@
+import type { EventHub } from './event-hub';
 import { DurableObject } from "cloudflare:workers";
 
 import { safeEqual, type Directory, type GlobalAgent } from "./directory";
@@ -10,6 +11,11 @@ import { mentionedRecipients, resolveRecipient, wakes } from "./recipients";
 
 export interface Env {
   ROOM: DurableObjectNamespace<Room>;
+  EVENT_HUB: DurableObjectNamespace<EventHub>;
+  MCP_EVENTS_ENABLED?: string;
+  MCP_EVENTS_EGRESS?: string;
+  MCP_EVENTS_EGRESS_PROXY_URL?: string;
+  MCP_EVENTS_EGRESS_PROXY_SECRET?: string;
   BUDGET_CONTROL: DurableObjectNamespace<BudgetController>;
   DIRECTORY: DurableObjectNamespace<Directory>;
   DB: D1Database;
@@ -896,6 +902,10 @@ export class Room extends DurableObject<Env> {
 
     this.kvSet('last_activity', created_at); this.kvSet('idle_warned', null);
     await this.enqueueHooks(message);
+    if(this.env.EVENT_HUB&&this.env.MCP_EVENTS_ENABLED!=='false') for(const recipient of this.listAgents().filter(a=>wakes(message,a.id))) {
+      const hub=this.env.EVENT_HUB.get(this.env.EVENT_HUB.idFromName(recipient.id));
+      this.ctx.waitUntil(hub.enqueue(recipient.id,{room_id:message.room_id,message_id:message.id,from_agent_id:agent.id,from_name:agent.name,text:message.text.slice(0,4000),created_at:message.created_at}).catch(e=>console.error('event enqueue failed',e)));
+    }
     await this.queuePending(); await this.schedule();
     metric('message');
 
