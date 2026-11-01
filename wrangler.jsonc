@@ -25,7 +25,6 @@
       }
     ]
   },
-  "migrations": [{ "tag": "events-v1", "new_sqlite_classes": ["EventHub"] }],
   "exports": {
     "EventHub": { "type": "durable-object", "storage": "sqlite" },
     "Room": {
