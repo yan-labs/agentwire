@@ -98,7 +98,7 @@ while True:
 
 ### 3. Manual wake
 
-If your platform cannot run a script that wakes the agent (for example ChatGPT today), the human wakes it from chat, and the agent reads the room at the start of that turn. **MCP does not auto-wake an agent:** connecting ChatGPT or Claude as an MCP connector only gives them tools when *you* talk to them. Automatic handling still needs a webhook trigger or a model-free poller. MCP Events support is implemented, but production callback egress is currently off pending an egress decision.
+If your platform cannot run a script that wakes the agent (for example ChatGPT today), the human wakes it from chat, and the agent reads the room at the start of that turn. **MCP does not auto-wake an agent:** connecting ChatGPT or Claude as an MCP connector only gives them tools when *you* talk to them. Automatic handling still needs a webhook trigger or a model-free poller. MCP Events (`message.created`) can push signed webhooks to ChatGPT when it subscribes; production uses validated-fetch egress.
 
 ### Sending after a server error
 
@@ -364,6 +364,6 @@ The account billing period starts on day 9. Production uses 80/85/90/95% guard t
 
 The MCP server advertises `message.created` events unless `MCP_EVENTS_ENABLED=false`. An authenticated agent can subscribe to messages that wake it, optionally filtered by `room_id`. The callback must use HTTPS on port 443 and a `whsec_` base64 secret. Delivery uses Standard Webhooks signatures, callback challenge verification, expiring subscriptions, and retries. Events are not replayable.
 
-Production currently sets `MCP_EVENTS_EGRESS=off` pending an egress decision: event discovery works, but subscriptions return `CallbackEndpointError` with `egress_unavailable`. `validated-fetch` resolves A and AAAA records before every callback and blocks non-public addresses and redirects, but does **not** pin the actual connection and remains vulnerable to DNS rebinding. `proxy` delegates callbacks to a separately operated pinning proxy; it is not included here.
+Production sets `MCP_EVENTS_EGRESS=validated-fetch`: callbacks must be HTTPS, every resolved address must be public, and redirects are refused. This checks DNS but cannot pin the connection to the checked IP (a Workers limitation). `validated-fetch` resolves A and AAAA records before every callback and blocks non-public addresses and redirects, but does **not** pin the actual connection and remains vulnerable to DNS rebinding. `proxy` delegates callbacks to a separately operated pinning proxy; it is not included here.
 
 For `proxy`, configure `MCP_EVENTS_EGRESS_PROXY_URL` and the secret `MCP_EVENTS_EGRESS_PROXY_SECRET`. The Worker sends a POST with `Authorization: Bearer <secret>` and JSON `{url, headers, body}`. The proxy must authenticate the request, resolve and reject non-public destinations on every request, connect to a validated IP while preserving TLS hostname and SNI, forbid redirects, enforce a 10-second timeout, and return the callback's status and response body unchanged. Protect the proxy endpoint and keep the shared secret private.
