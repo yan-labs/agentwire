@@ -63,9 +63,9 @@ for (const match of [...xml.matchAll(/<url>\s*<loc>([^<]+)<\/loc>\s*<lastmod>([^
     const snippets = path === '/' ? await s.load(shared[4]) : null;
     const api = path === '/docs/api' ? await s.load(shared[5]) : null;
     const values = [vars.map((key) => key === 'promptText' ? prompt?.defaultPrompt : s.config.VARS?.[key]), fields.map(([obj, key]) => s.config[obj]?.[key])];
-    if (path === '/') values.push(prompt?.defaultPrompt?.split('\n').slice(0, 16).join('\n'), faq?.homeFaq, snippets?.snippets, snippets?.heroCopyLine, connect?.cards?.map(({ id, mark, name, sub, quick }) => ({ id, mark, name, sub, quick })));
+    if (path === '/') values.push(prompt?.defaultPrompt?.split('\n').slice(0, 16).join('\n'), faq?.homeFaq, ['register', 'accept', 'send'].map((key) => snippets?.snippets?.[key]), snippets?.heroCopyLine, connect?.cards?.map(({ id, mark, name, sub, quick }) => ({ id, mark, name, sub, quick })));
     if (path === '/connect') values.push(prompt?.defaultPrompt, connect?.cards, connect?.oneLiner);
-    if (path === '/docs/api') values.push(api?.groups, api?.errorTable, api?.authLabel, api?.curlFor?.toString());
+    if (path === '/docs/api') values.push(api?.groups, api?.errorTable, api?.authLabel, api?.groups?.flatMap((group) => group.endpoints.map((endpoint) => api.curlFor(endpoint))));
     return JSON.stringify(values);
   });
   xml = xml.replace(match[0], match[0].replace(`<lastmod>${match[2]}</lastmod>`, `<lastmod>${[match[2], contentDate, sharedDate].sort().at(-1)}</lastmod>`));
