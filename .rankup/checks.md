@@ -5,4 +5,4 @@
 
 ## Sitemap lastmod（2026-11-05）
 - ✅ 本地构建 26/26 URL 带日期；模拟 quickstart 内容提交只更新该页，随后 robots 提交不改变日期；构建、typecheck、现有测试与站点检查通过。
-- ✅ 生产站点版本 `46efc44c-7e4e-4116-b355-b325ca90c8ca` 100%；线上 26/26 日期与构建一致。GSC 重新提交成功；Bing 已提交、正在处理。抓取仍待平台更新。详见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
+- ✅ 生产站点版本 `46efc44c-7e4e-4116-b355-b325ca90c8ca` 100%；线上 26/26 日期与构建一致。GSC 重新提交成功；Bing 重新抓取日期已从 10 月 30 日更新为 11 月 5 日、状态成功；两者均列 26 个地址。lastmod 按源文件粒度计算，共用文件的变更可能影响多个页面。详见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
