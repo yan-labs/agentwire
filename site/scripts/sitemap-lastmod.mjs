@@ -22,7 +22,7 @@ async function changed(files, value) {
   }
   return latestDate;
 }
-const cleanPage = (s) => s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
+const cleanPage = (s) => s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '').replace(/\s(?:class|style)=("[^"]*"|'[^']*'|\{`[^`]*`\})/g, '');
 const fileDate = (file) => changed([file], (commit) => source(commit, file));
 const pageDate = (file) => changed([file], (commit) => cleanPage(source(commit, file)));
 const shared = ['src/config.ts', 'src/data/prompt.ts', 'src/data/connect.ts', 'src/data/faq.ts', 'src/data/snippets.ts', 'src/data/api.ts'];
@@ -51,8 +51,9 @@ for (const match of [...xml.matchAll(/<url>\s*<loc>([^<]+)<\/loc>\s*<lastmod>([^
     : !['/', '/connect', '/pricing', '/docs/api'].includes(path) ? `src/content/pages/${path.slice(1)}.md` : null;
   const page = path === '/' ? 'src/pages/index.astro' : path === '/connect' || path === '/pricing' ? `src/pages${path}.astro` : path === '/docs/api' ? 'src/pages/docs/api.astro' : null;
   const text = readFileSync(resolve(site, content || page), 'utf8');
-  const vars = [...text.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]);
-  const fields = [...text.matchAll(/\b(SITE|API|LIMITS)\.(\w+)/g)].map((m) => [m[1], m[2]]);
+  const displayed = content ? text : cleanPage(text);
+  const vars = [...displayed.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]);
+  const fields = [...displayed.matchAll(/\b(SITE|API|LIMITS)\.(\w+)/g)].map((m) => [m[1], m[2]]);
   const contentDate = content ? await fileDate(content) : await pageDate(page);
   const sharedDate = await changed(shared, async (commit) => {
     const s = await snapshot(commit);
