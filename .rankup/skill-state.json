@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "skill": "rankup",
+  "source": "yan-labs/yan-skills",
+  "installedVersion": "3.39.2",
+  "latestVersion": "3.38.12",
+  "installedAt": "2026-10-27T02:30:09.019Z",
+  "lastCheckedAt": "2026-10-27T02:30:09.019Z",
+  "lastUpdatedAt": null,
+  "lastOutcome": "current",
+  "lastReason": null,
+  "scope": "global"
+}
