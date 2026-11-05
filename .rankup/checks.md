@@ -5,4 +5,4 @@
 
 ## Sitemap lastmod（2026-11-05）
 - ✅ 本地构建 26/26 URL 带日期；模拟 quickstart 内容提交只更新该页，随后 robots 提交不改变日期；构建、typecheck、现有测试与站点检查通过。
-- ⏸ 生产发布、生产三页回读及 GSC/Bing 提交待完成：仓库现有 GitHub Actions 仅 Checks，未找到要求的团队部署流水线。详见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
+- ✅ 生产站点版本 `46efc44c-7e4e-4116-b355-b325ca90c8ca` 100%；线上 26/26 日期与构建一致。GSC 重新提交成功；Bing 已提交、正在处理。抓取仍待平台更新。详见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
