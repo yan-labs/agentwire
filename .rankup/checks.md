@@ -5,7 +5,7 @@
 
 ## Sitemap lastmod（2026-11-05，修订）
 - ✅ 本地构建 26/26 URL 带日期；模拟修改 MCP 工具列表仅刷新实际展示的 API 页，修改 prompt 正文仅刷新 connect 和 docs/prompt，修改 quickstart 仅刷新该页；未使用的配置字段、公共脚本和 robots 同时修改不刷新。构建、typecheck、现有测试与站点检查通过。
-- ✅ 已从合入 main 的 `23b739223c1c46f3d8c9dc4b0576121a9f9db8de` 构建并发布站点版本 `9af18749-e389-4020-b89c-87b5442c7d8b`（100%）；线上 26/26 与构建一致，10 月 26 日 4 页、10 月 27 日 13 页、11 月 1 日 9 页。
+- ✅ 已从合入 main 的 `c9703152e1e9fe264c0cf68c4cf33121604e6eac` 构建并发布站点版本 `44674caa-50b2-4a1f-9157-3c5fa8cc810e`（100%）；线上 26/26 与构建一致，10 月 26 日 4 页、10 月 27 日 13 页、11 月 1 日 9 页。
 - ✅ GSC 和 Bing 已重新提交 sitemap；提交后 GSC 显示成功、26 个 URL，Bing 显示正在处理、已有 26 个 URL；抓取日期均只有日期粒度，不能证明本次部署后的抓取。详细证据见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
 
-- ✅ 复核模拟内联 style 与静态 class 改动均不刷新日期；页面文字改动只刷新对应 URL。逐页主内容源与日期对照表、最终部署及搜索平台回执见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
+- ✅ 复核模拟内联 style、静态及动态 class 改动均不刷新日期；页面文字改动只刷新对应 URL。逐页主内容源与日期对照表、最终部署及搜索平台回执见 `/Users/kcsx/.agent-reports/2026-11-05/agents-lastmod-auto.md`。
