@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/postbuild.mjs",
+    "build": "astro build && node scripts/postbuild.mjs && node scripts/sitemap-lastmod.mjs",
     "preview": "node scripts/preview.mjs",
     "check": "node scripts/check-dist.mjs",
     "check:mobile": "node scripts/check-overflow.mjs / /docs /docs/quickstart /docs/api /pricing /console /multi-agent-chat",
