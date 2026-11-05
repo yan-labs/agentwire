@@ -14,7 +14,7 @@ const filesFor = (entry, seen = new Set()) => {
     if (source.includes('{{')) filesFor('src/config.ts', seen);
     if (source.includes('{{promptText}}')) filesFor('src/data/prompt.ts', seen);
   } else {
-    for (const match of source.matchAll(/(?:from\s*|import\s*)['"](\.[^'"]+)['"]/g)) {
+    for (const match of source.matchAll(/(?:from\s*|import\s*\(?\s*)['"](\.[^'"]+)['"]/g)) {
       const base = resolve(dirname(file), match[1]);
       const dependency = [base, ...['.astro', '.ts', '.tsx', '.js', '.mjs'].map((ext) => base + ext)].find(existsSync);
       if (dependency) filesFor(dependency, seen);
