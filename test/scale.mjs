@@ -206,7 +206,7 @@ async function migrationTests({mf,db,call,ns}) {
 }
 async function budgetTests() {
  await build({entryPoints:['src/budget.ts'],outfile:'/tmp/aw-deploy/budget-test.mjs',bundle:true,format:'esm',platform:'node'});
- const {INCLUDED,USAGE_QUERY,parseUsage,billingWindow,budgetLevel,runBudgetGuard,budgetError,billingControl}=await import('/tmp/aw-deploy/budget-test.mjs');
+ const {INCLUDED,USAGE_QUERY,parseUsage,billingWindow,budgetLevel,getBudget,runBudgetGuard,budgetError,billingControl}=await import('/tmp/aw-deploy/budget-test.mjs');
  ok(new Date(billingWindow({BILLING_CYCLE_DAY:'15'},new Date('2026-10-10')).start).toISOString().startsWith('2026-09-15'),'billing window follows account billing day instead of calendar month');
  const now=new Date('2026-10-31T23:59:00Z'),zero=Object.fromEntries(Object.keys(INCLUDED).map(k=>[k,0]));
  for(const level of [0,1,2,3,4]) {const usage={...zero,workers_requests:INCLUDED.workers_requests*[0,0.5,0.7,0.8,0.9][level]};ok(budgetLevel(usage,{},now).level===level,`budget threshold L${level}`);}
@@ -252,4 +252,12 @@ async function budgetTests() {
  const gateFail=async()=>{throw Error('fixture outage');};
  await assert.rejects(()=>billingControl(env,false,gateFail));
  ok(store.get('budget').level===4&&store.has('billing-latch'),'WAF failure still retains internal billing stop for retry');
+ for(const staleLevel of [3,4]) {
+  let kvReads=0,extCalls=0;
+  const disabledEnv={...env,BUDGET_ENABLED:'false',PENDING:{get:async()=>{kvReads++;return {level:staleLevel,month:'2026-11',reason:'stale_budget',latched:staleLevel===4};},put:async()=>{throw Error('unexpected KV put');},delete:async()=>{throw Error('unexpected KV delete');}}};
+  const disabledState=await getBudget(disabledEnv);
+  ok(disabledState.level===0&&disabledState.reason==='local_test'&&kvReads===0&&budgetError(disabledState,'POST','/v1/rooms/x/messages')===null,`disabled getBudget ignores stale level ${staleLevel} KV`);
+  const guardResult=await runBudgetGuard(disabledEnv,async()=>{extCalls++;throw Error('unexpected external request');},now);
+  ok(guardResult===undefined&&extCalls===0&&kvReads===0,`disabled runBudgetGuard does no external requests or KV reads at stale level ${staleLevel}`);
+ }
 }
