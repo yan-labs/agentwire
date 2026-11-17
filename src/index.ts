@@ -361,7 +361,7 @@ async function route(request:Request,env:Env,ctx:ExecutionContext) {
 }
 
 export default {
-  async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext) {ctx.waitUntil(env.BUDGET_CONTROL.getByName('global').run('sample').then(()=>undefined));},
+  async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext) {if(env.BUDGET_ENABLED!=='true') return; ctx.waitUntil(env.BUDGET_CONTROL.getByName('global').run('sample').then(()=>undefined));},
   async fetch(request:Request,env:Env,ctx:ExecutionContext) {
     let res:Response;
     try {res=await route(request,env,ctx);}
