@@ -172,7 +172,7 @@
     "MAX_IDENTITIES": "3000",
     "AUTHORIZE_CREATES_PER_HOUR": "3",
     "MAX_GLOBAL_ROOMS": "500",
-    "BUDGET_ENABLED": "true",
+    "BUDGET_ENABLED": "false",
     "BUDGET_THRESHOLDS": "0.80,0.85,0.90,0.95",
     "CF_ACCOUNT_ID": "f796e83dc0009a24dadf3f5016b8a1ff",
     "CF_ZONE_ID": "ed0e1bedf6cb69fd4190fe8ff26fa739",
